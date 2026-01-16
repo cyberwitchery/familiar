@@ -1,5 +1,8 @@
 # familiar
 
+[![pypi](https://img.shields.io/pypi/v/familiar-cli)](https://pypi.org/project/familiar-cli/)
+[![docs](https://readthedocs.org/projects/familiar/badge/?version=latest)](https://familiar.readthedocs.io/)
+
 compose and invoke ai agent prompts from reusable templates.
 
 ships with a standard set of templates and invocations, or bring your own (mine are
@@ -46,6 +49,10 @@ invocations support placeholders:
 - `$1`, `$2`, ... - positional arguments
 - `$ARGUMENTS` - all positional arguments joined
 - `{{key}}` - named arguments passed via `--kv key=value`
+
+## documentation
+
+full docs at [familiar.readthedocs.io](https://familiar.readthedocs.io/).
 
 ## license
 
