@@ -1,16 +1,24 @@
 # security profile
 
-## always do
-- identify trust boundaries + attacker-controlled inputs.
+## tasks
+- identify trust boundaries and attacker-controlled inputs.
 - confirm authn/authz expectations (who can do what).
-- check for secret leakage (logs, errors, traces, metrics).
-- validate input early; fail closed; secure defaults.
+- look for injection risks, unsafe defaults, and privilege escalation.
+- check for secret leakage in logs, errors, traces, metrics.
+- validate inputs early; fail closed; secure defaults.
 
-## never do
-- weaken tls/crypto settings "temporarily".
-- add debug logging of tokens/headers/payloads containing secrets.
-- introduce permissive wildcard policies without justification.
+## prohibitions
+- do not weaken tls/crypto settings.
+- do not add debug logging for tokens/headers/payloads with secrets.
+- do not suggest storing secrets in repo, env files, or plaintext config.
+- do not propose broad permissions (admin/*) as a shortcut.
 
 ## deliverables
-- list top risks + mitigations (bullets).
-- propose the smallest diff that closes the biggest risk first.
+- top risks with mitigations (bulleted, ranked).
+- smallest patch for the highest-risk item first (if implementation requested).
+- verification steps (tests/commands) for each mitigation.
+
+## output
+- section: findings (ranked bullets).
+- section: recommended changes (diffs if requested).
+- section: verification (commands/tests).

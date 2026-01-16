@@ -1,10 +1,25 @@
-produce an infrastructure change plan for: $ARGUMENTS
+task: infrastructure change plan.
 
-actions:
-- list the touched components and potential impact.
-- propose rollout and rollback steps.
-- highlight least-privilege concerns and exposure risks.
-- minimize diffs and avoid churn.
+inputs
+- $ARGUMENTS (required): desired change (what/why), target env (dev/prod), constraints.
 
-output:
-- a plan and any diffs if implementation is requested.
+preconditions
+- if required info is missing (env, region, account, constraints): ask; stop.
+- do not propose or apply production changes without explicit approval.
+
+steps
+- list touched components and assumptions.
+- describe blast radius and failure modes.
+- propose rollout steps (staged) and rollback steps.
+- highlight least-privilege and exposure risks.
+- include verification commands (plan/dry-run/diff/apply checks).
+
+acceptance
+- plan is actionable, ordered, and includes rollback.
+- no broad permissions or public exposure without explicit justification.
+- diffs are minimal (only if asked to implement).
+
+output
+- plan (rollout + rollback).
+- diffs (only if asked).
+- verification commands.

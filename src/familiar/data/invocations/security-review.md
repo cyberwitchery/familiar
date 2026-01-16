@@ -1,9 +1,28 @@
-perform a security review.
+task: security review.
 
-actions:
+inputs
+- $ARGUMENTS (optional): scope. if empty, infer from current diff/repo context.
+
+preconditions
+- if scope is unclear and no obvious target exists: ask what to review; stop.
+
+steps
 - identify trust boundaries and attacker-controlled inputs.
-- confirm authentication and authorization expectations.
-- check for injection risks, unsafe defaults, and secret leakage.
+- confirm authn/authz expectations.
+- check for:
+  - injection (sql, shell, template, path)
+  - unsafe deserialization / parsing
+  - secrets handling
+  - permissions / privilege escalation
+  - insecure defaults
+- produce a ranked list of issues.
 
-output:
-- top risks and mitigations.
+deliverables
+- findings ranked by severity (high/med/low) with concrete mitigations.
+- for each high item: smallest patch suggestion.
+- verification steps for each mitigation (tests/commands).
+
+output
+- findings (ranked bullets).
+- recommended changes (diff only if requested).
+- verification commands/tests.

@@ -1,19 +1,28 @@
-bootstrap a new rust project.
+task: bootstrap a new rust crate.
 
-arguments:
-- crate name: $1
-- type: $2 (bin|lib)
-- msrv: $3 (optional)
-- license: $4 (optional)
+inputs (positional)
+- $1 crate_name (required)
+- $2 crate_type: bin|lib (required)
+- $3 msrv (optional; e.g. 1.78)
+- $4 license (optional; e.g. mit, apache-2.0)
 
-actions:
-- create the crate using cargo.
-- add a minimal readme (what it does, how to run).
-- set up formatting and linting if missing.
-- add a minimal test.
+preconditions
+- if crate_name or crate_type is missing/invalid: ask and stop.
+- if target directory exists: ask whether to abort or integrate; do not overwrite by default.
 
-acceptance:
-- `cargo fmt`, `cargo clippy`, and `cargo test` succeed.
+steps
+- create crate: `cargo new <crate_name> --<crate_type>`.
+- ensure project builds.
+- add README.md with: one-line purpose + quickstart commands.
+- if msrv provided: encode it (ask preferred mechanism if unclear; do not invent).
+- add minimal test if none exists.
+- run fmt/clippy/test.
 
-output:
-- show diffs and exact commands.
+acceptance
+- `cargo fmt` succeeds.
+- `cargo clippy --all-targets --all-features -- -D warnings` succeeds.
+- `cargo test --all-features` succeeds.
+
+output
+- unified diff only for files changed/created.
+- verification commands (exact).

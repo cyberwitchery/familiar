@@ -1,15 +1,23 @@
 # infra profile
 
-## change discipline
-- plan first: what changes, impact, rollback.
-- no production changes without explicit instruction.
-- keep diffs minimal; avoid churn in generated files.
+## discipline
+- plan first: describe change, blast radius, rollout, rollback.
+- never touch production without explicit confirmation.
+- minimize diffs; avoid churn in generated files.
 
-## safety
-- least privilege everywhere (iam/rbac/security groups).
-- avoid opening 0.0.0.0/0 unless explicitly required and documented.
-- pin versions (providers, modules, images) when practical.
+## safety rules
+- least privilege for iam/rbac/security groups.
+- do not open 0.0.0.0/0 unless explicitly required and documented.
+- pin versions where practical (providers, modules, images).
+- secrets: reference secret stores; do not inline credentials.
 
-## verification
-- include exact commands (e.g. terraform fmt/validate/plan, kubectl diff, helm template).
-- highlight drift risks and rollout steps.
+## workflow
+- list touched components and assumptions.
+- propose staged rollout steps and rollback steps.
+- include verification commands (dry-run/plan/apply checks).
+- call out risks and mitigations.
+
+## output
+- section: plan (steps + rollback).
+- section: diffs (only if asked to implement).
+- section: verification (commands).
