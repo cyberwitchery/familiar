@@ -2,6 +2,9 @@
 
 compose and invoke ai agent prompts from reusable templates.
 
+ships with a standard set of templates and invocations, or bring your own (mine are
+very much wip).
+
 ## installation
 
 ```
