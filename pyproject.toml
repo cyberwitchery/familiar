@@ -33,7 +33,7 @@ familiar = "familiar.cli:main"
 package-dir = {"" = "src"}
 
 [project.optional-dependencies]
-dev = ["ruff", "mypy", "pytest"]
+dev = ["ruff", "mypy", "pytest", "pytest-cov"]
 
 [tool.setuptools.package-data]
 "familiar.data.templates" = ["*.md"]
@@ -46,3 +46,17 @@ target-version = "py39"
 python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=familiar --cov-report=term-missing --cov-fail-under=80"
+
+[tool.coverage.run]
+source = ["src/familiar"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+]

@@ -2,6 +2,7 @@
 
 [![pypi](https://img.shields.io/pypi/v/familiar-cli)](https://pypi.org/project/familiar-cli/)
 [![docs](https://readthedocs.org/projects/familiar/badge/?version=latest)](https://familiar.readthedocs.io/)
+[![codecov](https://codecov.io/gh/cyberwitchery/familiar/branch/main/graph/badge.svg)](https://codecov.io/gh/cyberwitchery/familiar)
 
 compose and invoke ai agent prompts from reusable templates.
 

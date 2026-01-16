@@ -1,4 +1,4 @@
-name: CI
+name: ci
 
 on:
   push:
@@ -14,11 +14,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install dependencies
+      - name: install dependencies
         run: pip install ruff mypy
-      - name: Run ruff
+      - name: run ruff
         run: ruff check src/
-      - name: Run mypy
+      - name: run mypy
         run: mypy src/
 
   test:
@@ -31,7 +31,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install package
-        run: pip install -e .
-      - name: Verify CLI entry point
+      - name: install package with dev dependencies
+        run: pip install -e ".[dev]"
+      - name: run tests with coverage
+        run: pytest --cov-report=term-missing --cov-report=xml
+      - name: upload coverage to codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false
+      - name: verify cli entry point
         run: familiar --help
