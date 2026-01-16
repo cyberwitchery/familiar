@@ -1,0 +1,48 @@
+[project]
+name = "familiar-cli"
+version = "0.1.0"
+description = "compose and invoke ai agent prompts from reusable templates"
+readme = "readme.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [
+    { name = "cyberwitchery labs", email = "contact@cyberwitchery.com" }
+]
+keywords = ["ai", "agents", "prompts", "cli", "codex", "claude"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Code Generators",
+]
+
+[project.urls]
+Homepage = "https://github.com/cyberwitchery/familiar"
+Repository = "https://github.com/cyberwitchery/familiar"
+
+[project.scripts]
+familiar = "familiar.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[project.optional-dependencies]
+dev = ["ruff", "mypy", "pytest"]
+
+[tool.setuptools.package-data]
+"familiar.data.templates" = ["*.md"]
+"familiar.data.invocations" = ["*.md"]
+
+[tool.ruff]
+target-version = "py39"
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true

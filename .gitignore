@@ -1,0 +1,15 @@
+# build
+build/
+dist/
+*.egg-info/
+site/
+
+# python
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+
+# env
+.env
+.venv/

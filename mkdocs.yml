@@ -1,0 +1,24 @@
+site_name: familiar
+site_url: https://familiar-cli.readthedocs.io
+repo_url: https://github.com/cyberwitchery/familiar
+repo_name: cyberwitchery/familiar
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: deep purple
+
+nav:
+  - home: index.md
+  - getting started: getting-started.md
+  - profiles: profiles.md
+  - invocations: invocations.md
+  - customization: customization.md
+  - cli reference: cli.md
+  - changelog: changelog.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
