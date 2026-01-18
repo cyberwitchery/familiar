@@ -14,12 +14,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: install dependencies
-        run: pip install ruff mypy
-      - name: run ruff
-        run: ruff check src/
-      - name: run mypy
-        run: mypy src/
+      - name: install package with dev dependencies
+        run: make dev
+      - name: run lint
+        run: make lint
 
   test:
     runs-on: ubuntu-latest
@@ -32,9 +30,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: install package with dev dependencies
-        run: pip install -e ".[dev]"
+        run: make dev
       - name: run tests with coverage
-        run: pytest --cov-report=term-missing --cov-report=xml
+        run: make ci
       - name: upload coverage to codecov
         if: matrix.python-version == '3.12'
         uses: codecov/codecov-action@v4

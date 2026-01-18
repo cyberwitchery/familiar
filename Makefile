@@ -1,4 +1,4 @@
-.PHONY: install dev lint test build clean publish
+.PHONY: install dev format lint test coverage ci build clean publish
 
 install:
 	pip install .
@@ -6,15 +6,22 @@ install:
 dev:
 	pip install -e ".[dev]"
 
+format:
+	ruff format .
+
 lint:
+	ruff format --check .
 	ruff check .
-	mypy src/familiar
+	mypy .
 
 test:
-	pytest tests/
+	pytest -q
 
 coverage:
-	pytest tests/ --cov=familiar --cov-report=term-missing --cov-report=html
+	pytest --cov-report=term-missing --cov-report=html
+
+ci:
+	pytest --cov-report=term-missing --cov-report=xml
 
 build: clean
 	python -m build

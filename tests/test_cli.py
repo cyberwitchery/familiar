@@ -14,6 +14,7 @@ from familiar.cli import (
     cmd_conjure,
     cmd_invoke,
     cmd_list,
+    cmd_lint,
     CliError,
 )
 
@@ -245,3 +246,60 @@ class TestCmdList:
         cmd_list(args)
         captured = capsys.readouterr()
         assert "python (local)" in captured.out
+
+
+class TestCmdLint:
+    """tests for lint command."""
+
+    def test_lint_builtins_pass(self, tmp_path, capsys):
+        args = argparse.Namespace(
+            into=str(tmp_path),
+            errors_only=False,
+        )
+        result = cmd_lint(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "all checks passed" in captured.out
+
+    def test_lint_with_warning(self, tmp_path, capsys):
+        templates = tmp_path / ".familiar" / "templates"
+        templates.mkdir(parents=True)
+        (templates / "bad.md").write_text("no heading here")
+
+        args = argparse.Namespace(
+            into=str(tmp_path),
+            errors_only=False,
+        )
+        result = cmd_lint(args)
+        assert result == 0  # warnings don't cause failure
+        captured = capsys.readouterr()
+        assert "warning" in captured.err
+        assert "heading" in captured.err
+
+    def test_lint_with_error(self, tmp_path, capsys):
+        templates = tmp_path / ".familiar" / "templates"
+        templates.mkdir(parents=True)
+        (templates / "empty.md").write_text("")
+
+        args = argparse.Namespace(
+            into=str(tmp_path),
+            errors_only=False,
+        )
+        result = cmd_lint(args)
+        assert result == 1  # errors cause failure
+        captured = capsys.readouterr()
+        assert "error" in captured.err
+
+    def test_lint_errors_only(self, tmp_path, capsys):
+        templates = tmp_path / ".familiar" / "templates"
+        templates.mkdir(parents=True)
+        (templates / "bad.md").write_text("no heading here")
+
+        args = argparse.Namespace(
+            into=str(tmp_path),
+            errors_only=True,
+        )
+        result = cmd_lint(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "all checks passed" in captured.out
