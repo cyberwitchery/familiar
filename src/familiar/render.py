@@ -56,6 +56,39 @@ def substitute(text: str, args: list[str], kv: dict[str, str]) -> str:
     return text
 
 
+def list_items(repo_root: Path, kind: str) -> list[tuple[str, str, bool]]:
+    """List available templates or invocations.
+
+    Returns list of (name, first_line, is_local) tuples, sorted by name.
+    """
+    items: dict[str, tuple[str, bool]] = {}
+
+    # built-ins
+    pkg = f"familiar.data.{kind}"
+    try:
+        pkg_files = resources.files(pkg)
+        for item in pkg_files.iterdir():
+            if item.name.endswith(".md") and not item.name.startswith("_"):
+                name = item.name[:-3]
+                content = item.read_text(encoding="utf-8")
+                first_line = content.split("\n", 1)[0].strip()
+                items[name] = (first_line, False)
+    except (FileNotFoundError, TypeError):
+        pass
+
+    # local overrides
+    local_dir = repo_root / ".familiar" / kind
+    if local_dir.is_dir():
+        for f in local_dir.glob("*.md"):
+            if not f.name.startswith("_"):
+                name = f.stem
+                content = f.read_text(encoding="utf-8")
+                first_line = content.split("\n", 1)[0].strip()
+                items[name] = (first_line, True)
+
+    return [(name, first_line, is_local) for name, (first_line, is_local) in sorted(items.items())]
+
+
 def compose(repo_root: Path, profiles: list[str], invocation: str, args: list[str], kv: dict[str, str]) -> tuple[str, str, str]:
     """Compose system and user sections from selected profiles and invocation."""
     core = load_text(repo_root, "templates", "core").strip()
