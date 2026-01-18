@@ -2,6 +2,7 @@
 
 ## 0.0.3
 
+- `conjurings` command to manage saved conjurings (show/set/reset)
 - improved error messages with actionable hints
 - added `--debug` flag to show full tracebacks
 - added examples to `--help` output

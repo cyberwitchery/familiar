@@ -126,3 +126,57 @@ familiar list invocations -v
 # list in specific repo
 familiar list --into /path/to/repo
 ```
+
+## familiar conjurings
+
+manage saved conjurings for an agent.
+
+### familiar conjurings show
+
+show saved conjurings for an agent.
+
+```
+familiar conjurings show <agent> [--into <path>]
+```
+
+### familiar conjurings set
+
+set conjurings for an agent.
+
+```
+familiar conjurings set <agent> <conjurings...> [--into <path>]
+```
+
+### familiar conjurings reset
+
+delete saved conjurings for an agent.
+
+```
+familiar conjurings reset <agent> [--into <path>]
+```
+
+**arguments:**
+
+| argument | description |
+|----------|-------------|
+| `agent` | target agent: `codex` or `claude` |
+| `conjurings` | one or more conjuring names (for `set`) |
+
+**options:**
+
+| option | description |
+|--------|-------------|
+| `--into` | target repository path (default: current directory) |
+
+**examples:**
+
+```bash
+# show saved conjurings
+familiar conjurings show claude
+
+# set conjurings
+familiar conjurings set codex rust sec infra
+
+# reset to empty
+familiar conjurings reset claude
+```

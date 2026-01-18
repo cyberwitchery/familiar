@@ -136,6 +136,46 @@ def _print_items(items: list[tuple[str, str, bool]], verbose: bool) -> None:
             print(f"  {name}{marker}")
 
 
+def cmd_conjurings_show(args: argparse.Namespace) -> int:
+    repo_root = find_repo_root(Path(args.into or os.getcwd()))
+    cfg = load_config(repo_root, args.agent)
+    conjurings = cfg.get("conjurings", [])
+    if not conjurings:
+        print(f"no conjurings saved for {args.agent}")
+    else:
+        for name in conjurings:
+            print(name)
+    return EXIT_SUCCESS
+
+
+def cmd_conjurings_set(args: argparse.Namespace) -> int:
+    repo_root = find_repo_root(Path(args.into or os.getcwd()))
+    # validate that all conjurings exist
+    for name in args.conjurings:
+        try:
+            from .render import load_text
+            load_text(repo_root, "templates", name)
+        except NotFoundError:
+            raise CliError(
+                f"unknown conjuring: {name}",
+                hint="run 'familiar list conjurings' to see available options",
+            )
+    save_config(repo_root, args.agent, {"conjurings": args.conjurings})
+    print(f"saved conjurings for {args.agent}: {' '.join(args.conjurings)}")
+    return EXIT_SUCCESS
+
+
+def cmd_conjurings_reset(args: argparse.Namespace) -> int:
+    repo_root = find_repo_root(Path(args.into or os.getcwd()))
+    p = config_path(repo_root, args.agent)
+    if p.exists():
+        p.unlink()
+        print(f"reset conjurings for {args.agent}")
+    else:
+        print(f"no conjurings saved for {args.agent}")
+    return EXIT_SUCCESS
+
+
 def cmd_list(args: argparse.Namespace) -> int:
     repo_root = find_repo_root(Path(args.into or os.getcwd()))
 
@@ -217,6 +257,34 @@ def main() -> None:
     list_cmd.add_argument("--into", help="target repo path (default: current directory)")
     list_cmd.add_argument("-v", "--verbose", action="store_true", help="show first line of each file")
     list_cmd.set_defaults(func=cmd_list)
+
+    # conjurings subcommand with show/set/reset
+    conjurings_cmd = sub.add_parser(
+        "conjurings",
+        help="manage saved conjurings for an agent",
+        epilog="examples:\n"
+               "  familiar conjurings show claude\n"
+               "  familiar conjurings set codex rust sec\n"
+               "  familiar conjurings reset claude\n",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    conjurings_sub = conjurings_cmd.add_subparsers(dest="action", required=True)
+
+    conj_show = conjurings_sub.add_parser("show", help="show saved conjurings")
+    conj_show.add_argument("agent", choices=agent_choices)
+    conj_show.add_argument("--into", help="target repo path (default: current directory)")
+    conj_show.set_defaults(func=cmd_conjurings_show)
+
+    conj_set = conjurings_sub.add_parser("set", help="set conjurings for an agent")
+    conj_set.add_argument("agent", choices=agent_choices)
+    conj_set.add_argument("conjurings", nargs="+", help="conjuring names")
+    conj_set.add_argument("--into", help="target repo path (default: current directory)")
+    conj_set.set_defaults(func=cmd_conjurings_set)
+
+    conj_reset = conjurings_sub.add_parser("reset", help="reset saved conjurings")
+    conj_reset.add_argument("agent", choices=agent_choices)
+    conj_reset.add_argument("--into", help="target repo path (default: current directory)")
+    conj_reset.set_defaults(func=cmd_conjurings_reset)
 
     args = parser.parse_args()
 

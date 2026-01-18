@@ -17,6 +17,9 @@ from familiar.cli import (
     cmd_conjure,
     cmd_invoke,
     cmd_list,
+    cmd_conjurings_show,
+    cmd_conjurings_set,
+    cmd_conjurings_reset,
     CliError,
 )
 
@@ -347,3 +350,84 @@ class TestCmdList:
         cmd_list(args)
         captured = capsys.readouterr()
         assert "python (local)" in captured.out
+
+
+class TestCmdConjurings:
+    """tests for conjurings show/set/reset commands."""
+
+    def test_show_empty(self, tmp_path, capsys):
+        args = argparse.Namespace(
+            agent="claude",
+            into=str(tmp_path),
+        )
+        result = cmd_conjurings_show(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "no conjurings saved" in captured.out
+
+    def test_show_with_saved(self, tmp_path, capsys):
+        save_config(tmp_path, "claude", {"conjurings": ["rust", "sec"]})
+        args = argparse.Namespace(
+            agent="claude",
+            into=str(tmp_path),
+        )
+        result = cmd_conjurings_show(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "rust" in captured.out
+        assert "sec" in captured.out
+
+    def test_set_saves_config(self, tmp_path, capsys):
+        args = argparse.Namespace(
+            agent="codex",
+            conjurings=["python", "infra"],
+            into=str(tmp_path),
+        )
+        result = cmd_conjurings_set(args)
+        assert result == 0
+        cfg = load_config(tmp_path, "codex")
+        assert cfg == {"conjurings": ["python", "infra"]}
+        captured = capsys.readouterr()
+        assert "saved conjurings" in captured.out
+
+    def test_set_validates_conjurings(self, tmp_path):
+        args = argparse.Namespace(
+            agent="claude",
+            conjurings=["nonexistent"],
+            into=str(tmp_path),
+        )
+        with pytest.raises(CliError, match="unknown conjuring"):
+            cmd_conjurings_set(args)
+
+    def test_set_overwrites(self, tmp_path):
+        save_config(tmp_path, "claude", {"conjurings": ["old"]})
+        args = argparse.Namespace(
+            agent="claude",
+            conjurings=["rust"],
+            into=str(tmp_path),
+        )
+        cmd_conjurings_set(args)
+        cfg = load_config(tmp_path, "claude")
+        assert cfg == {"conjurings": ["rust"]}
+
+    def test_reset_deletes_config(self, tmp_path, capsys):
+        save_config(tmp_path, "claude", {"conjurings": ["rust"]})
+        args = argparse.Namespace(
+            agent="claude",
+            into=str(tmp_path),
+        )
+        result = cmd_conjurings_reset(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "reset conjurings" in captured.out
+        assert not (tmp_path / ".familiar" / "claude.json").exists()
+
+    def test_reset_no_config(self, tmp_path, capsys):
+        args = argparse.Namespace(
+            agent="claude",
+            into=str(tmp_path),
+        )
+        result = cmd_conjurings_reset(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "no conjurings saved" in captured.out

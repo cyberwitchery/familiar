@@ -192,3 +192,70 @@ class TestListIntegration:
         )
         assert result.returncode == 0
         assert "custom (local)" in result.stdout
+
+
+class TestConjuringsIntegration:
+    """integration tests for conjurings command."""
+
+    def test_conjurings_show_empty(self, tmp_path):
+        result = subprocess.run(
+            [sys.executable, "-m", "familiar.cli", "conjurings", "show", "claude", "--into", str(tmp_path)],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert "no conjurings saved" in result.stdout
+
+    def test_conjurings_set_and_show(self, tmp_path):
+        # set
+        result = subprocess.run(
+            [sys.executable, "-m", "familiar.cli", "conjurings", "set", "claude", "rust", "sec", "--into", str(tmp_path)],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert "saved conjurings" in result.stdout
+
+        # show
+        result = subprocess.run(
+            [sys.executable, "-m", "familiar.cli", "conjurings", "show", "claude", "--into", str(tmp_path)],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert "rust" in result.stdout
+        assert "sec" in result.stdout
+
+    def test_conjurings_reset(self, tmp_path):
+        # set first
+        subprocess.run(
+            [sys.executable, "-m", "familiar.cli", "conjurings", "set", "claude", "rust", "--into", str(tmp_path)],
+            capture_output=True,
+            text=True,
+        )
+
+        # reset
+        result = subprocess.run(
+            [sys.executable, "-m", "familiar.cli", "conjurings", "reset", "claude", "--into", str(tmp_path)],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert "reset conjurings" in result.stdout
+
+        # verify empty
+        result = subprocess.run(
+            [sys.executable, "-m", "familiar.cli", "conjurings", "show", "claude", "--into", str(tmp_path)],
+            capture_output=True,
+            text=True,
+        )
+        assert "no conjurings saved" in result.stdout
+
+    def test_conjurings_set_invalid(self, tmp_path):
+        result = subprocess.run(
+            [sys.executable, "-m", "familiar.cli", "conjurings", "set", "claude", "nonexistent", "--into", str(tmp_path)],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode != 0
+        assert "unknown conjuring" in result.stderr
