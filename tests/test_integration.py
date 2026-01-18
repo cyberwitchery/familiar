@@ -78,7 +78,16 @@ class TestInvokeIntegration:
             text=True,
         )
         assert result.returncode != 0
-        assert "expected key=value" in result.stderr
+        assert "invalid argument" in result.stderr
+
+    def test_error_includes_hint(self, tmp_path):
+        result = subprocess.run(
+            [sys.executable, "-m", "familiar.cli", "invoke", "claude", "nonexistent", "--into", str(tmp_path)],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode != 0
+        assert "hint:" in result.stderr
 
 
 class TestHelpIntegration:
@@ -93,6 +102,7 @@ class TestHelpIntegration:
         assert result.returncode == 0
         assert "conjure" in result.stdout
         assert "invoke" in result.stdout
+        assert "examples:" in result.stdout
 
     def test_conjure_help(self):
         result = subprocess.run(

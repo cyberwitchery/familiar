@@ -17,6 +17,7 @@ from familiar.cli import (
     cmd_conjure,
     cmd_invoke,
     cmd_list,
+    CliError,
 )
 
 
@@ -79,6 +80,13 @@ class TestLoadSaveConfig:
         result = load_config(tmp_path, "codex")
         assert result == {"conjurings": ["new"]}
 
+    def test_load_malformed_raises(self, tmp_path):
+        config_dir = tmp_path / ".familiar"
+        config_dir.mkdir(parents=True)
+        (config_dir / "claude.json").write_text("{ invalid json }")
+        with pytest.raises(CliError, match="malformed config"):
+            load_config(tmp_path, "claude")
+
 
 class TestWriteInstruction:
     """tests for writing instruction files."""
@@ -116,7 +124,7 @@ class TestParseKv:
         assert result == {}
 
     def test_missing_equals_raises(self):
-        with pytest.raises(SystemExit, match="expected key=value"):
+        with pytest.raises(CliError, match="invalid argument"):
             parse_kv(["invalid"])
 
 
@@ -125,7 +133,7 @@ class TestRunAgent:
 
     def test_missing_binary_raises(self, tmp_path):
         with patch("familiar.agents.subprocess.call", side_effect=FileNotFoundError):
-            with pytest.raises(SystemExit, match="claude not found in PATH"):
+            with pytest.raises(CliError, match="claude not found in PATH"):
                 run_agent(tmp_path, "claude", "prompt", headless=True)
 
     def test_returns_exit_code(self, tmp_path):
@@ -165,7 +173,7 @@ class TestCmdConjure:
             conjurings=["nonexistent"],
             into=str(tmp_path),
         )
-        with pytest.raises(SystemExit, match="unknown template"):
+        with pytest.raises(CliError, match="unknown template"):
             cmd_conjure(args)
 
 
@@ -236,7 +244,7 @@ class TestCmdInvoke:
             kv=None,
             inv_args=[],
         )
-        with pytest.raises(SystemExit, match="unknown invocation"):
+        with pytest.raises(CliError, match="unknown invocation"):
             cmd_invoke(args)
 
     def test_kv_args_passed(self, tmp_path):

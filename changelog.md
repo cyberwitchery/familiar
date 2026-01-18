@@ -1,5 +1,13 @@
 # changelog
 
+## 0.0.3
+
+- improved error messages with actionable hints
+- added `--debug` flag to show full tracebacks
+- added examples to `--help` output
+- added Makefile for common dev tasks
+- added CONTRIBUTING.md
+
 ## 0.0.2
 
 - `list` command to discover available conjurings and invocations (lists both by default)
