@@ -1,5 +1,8 @@
 refactor: $ARGUMENTS
 
+inputs
+- $ARGUMENTS (required): file, function, or code to refactor.
+
 goals:
 - improve structure without changing behavior.
 - keep diffs minimal and reviewable.

@@ -1,5 +1,13 @@
 # changelog
 
+## 0.0.4
+
+- `lint` command to validate templates and invocations
+- standardized invocation structure with recommended sections
+- improved placeholder documentation detection in linter
+- simplified architecture: removed config file management
+- removed `conjurings` command (was show/set/reset)
+
 ## 0.0.3
 
 - `conjurings` command to manage saved conjurings (show/set/reset)

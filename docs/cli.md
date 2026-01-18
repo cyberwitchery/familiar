@@ -25,7 +25,6 @@ familiar conjure <agent> <conjurings...> [--into <path>]
 
 - combines core profile with specified conjurings
 - writes `AGENTS.md` (codex) or `CLAUDE.md` (claude) to repo root
-- saves profile selection to `.familiar/<agent>.json`
 
 **examples:**
 
@@ -42,7 +41,7 @@ familiar conjure claude python --into /path/to/repo
 run a task prompt through the agent.
 
 ```
-familiar invoke <agent> <invocation> [--into <path>] [--headless] [--conjurings <conjurings...>] [--kv <key=value>...] [args...]
+familiar invoke <agent> <invocation> [--into <path>] [--headless] [--kv <key=value>...] [args...]
 ```
 
 **arguments:**
@@ -59,14 +58,12 @@ familiar invoke <agent> <invocation> [--into <path>] [--headless] [--conjurings 
 |--------|-------------|
 | `--into` | target repository path (default: current directory) |
 | `--headless` | run without interactive ui |
-| `--conjurings` | override saved conjurings |
 | `--kv` | named arguments as `key=value` pairs |
 
 **behavior:**
 
-- loads conjurings from `.familiar/<agent>.json` (or uses `--conjurings`)
 - renders invocation with provided arguments
-- runs the agent with the composed prompt
+- runs the agent with the prompt
 
 **examples:**
 
@@ -79,9 +76,6 @@ familiar invoke codex add-tests "parse_config" --headless
 
 # with named arguments
 familiar invoke codex implement-feature --kv spec="add caching"
-
-# override conjurings
-familiar invoke codex security-review --conjurings sec
 ```
 
 ## familiar list
@@ -127,56 +121,38 @@ familiar list invocations -v
 familiar list --into /path/to/repo
 ```
 
-## familiar conjurings
+## familiar lint
 
-manage saved conjurings for an agent.
-
-### familiar conjurings show
-
-show saved conjurings for an agent.
+lint templates and invocations.
 
 ```
-familiar conjurings show <agent> [--into <path>]
+familiar lint [--into <path>] [--errors-only]
 ```
-
-### familiar conjurings set
-
-set conjurings for an agent.
-
-```
-familiar conjurings set <agent> <conjurings...> [--into <path>]
-```
-
-### familiar conjurings reset
-
-delete saved conjurings for an agent.
-
-```
-familiar conjurings reset <agent> [--into <path>]
-```
-
-**arguments:**
-
-| argument | description |
-|----------|-------------|
-| `agent` | target agent: `codex` or `claude` |
-| `conjurings` | one or more conjuring names (for `set`) |
 
 **options:**
 
 | option | description |
 |--------|-------------|
 | `--into` | target repository path (default: current directory) |
+| `--errors-only` | show only errors, not warnings |
+
+**behavior:**
+
+- checks templates for proper markdown structure
+- checks invocations for recommended sections and placeholder documentation
+- errors cause non-zero exit code; warnings do not
+
+see [linting](linting.md) for detailed rules.
 
 **examples:**
 
 ```bash
-# show saved conjurings
-familiar conjurings show claude
+# lint everything
+familiar lint
 
-# set conjurings
-familiar conjurings set codex rust sec infra
+# lint with only errors (no warnings)
+familiar lint --errors-only
 
-# reset to empty
-familiar conjurings reset claude
+# lint specific repo
+familiar lint --into /path/to/repo
 ```

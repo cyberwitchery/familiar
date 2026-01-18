@@ -1,4 +1,5 @@
 """tests for familiar.agents."""
+
 from __future__ import annotations
 
 import pytest
@@ -52,7 +53,9 @@ class TestCodexAgent:
         mock_result = MagicMock()
         mock_result.returncode = 0
 
-        with patch("familiar.agents.subprocess.run", return_value=mock_result) as mock_run:
+        with patch(
+            "familiar.agents.subprocess.run", return_value=mock_result
+        ) as mock_run:
             result = agent.run(tmp_path, "test prompt", headless=True)
             assert result == 0
             mock_run.assert_called_once()

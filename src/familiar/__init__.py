@@ -1,4 +1,5 @@
 """familiar - compose and invoke ai agent prompts."""
+
 from importlib.metadata import version, PackageNotFoundError
 
 __all__ = ["agents", "render", "cli"]

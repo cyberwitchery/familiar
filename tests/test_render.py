@@ -1,9 +1,17 @@
 """tests for familiar.render."""
+
 from __future__ import annotations
 
 import pytest
 
-from familiar.render import substitute, load_text, compose, list_items, NotFoundError
+from familiar.render import (
+    substitute,
+    load_text,
+    compose_system,
+    render_invocation,
+    list_items,
+    NotFoundError,
+)
 
 
 class TestSubstitute:
@@ -90,53 +98,45 @@ class TestLoadText:
             load_text(tmp_path, "invocations", "nonexistent")
 
 
-class TestCompose:
-    """tests for composing prompts."""
+class TestComposeSystem:
+    """tests for composing system prompts."""
 
     def test_compose_with_conjurings(self, tmp_path):
-        system, user, full = compose(
-            tmp_path, ["python"], "__noop__", [], {}
-        )
+        system = compose_system(tmp_path, ["python"])
         assert "core" in system.lower() or "workflow" in system.lower()
         assert "python" in system.lower()
-        assert "---" in full
 
     def test_compose_order(self, tmp_path):
         # create local overrides to control content
         templates = tmp_path / ".familiar" / "templates"
-        invocations = tmp_path / ".familiar" / "invocations"
         templates.mkdir(parents=True)
-        invocations.mkdir(parents=True)
         (templates / "core.md").write_text("CORE")
         (templates / "first.md").write_text("FIRST")
         (templates / "second.md").write_text("SECOND")
-        (invocations / "test.md").write_text("INVOCATION")
 
-        system, user, full = compose(
-            tmp_path, ["first", "second"], "test", [], {}
-        )
+        system = compose_system(tmp_path, ["first", "second"])
         # verify order: core, then conjurings in order
         assert system == "CORE\n\nFIRST\n\nSECOND"
-        assert user == "INVOCATION"
-        assert full == "CORE\n\nFIRST\n\nSECOND\n\n---\n\nINVOCATION\n"
 
-    def test_compose_with_args(self, tmp_path):
+    def test_compose_missing_profile_raises(self, tmp_path):
+        with pytest.raises(NotFoundError, match="unknown template"):
+            compose_system(tmp_path, ["nonexistent"])
+
+
+class TestRenderInvocation:
+    """tests for rendering invocations."""
+
+    def test_render_with_args(self, tmp_path):
         invocations = tmp_path / ".familiar" / "invocations"
         invocations.mkdir(parents=True)
         (invocations / "greet.md").write_text("hello $1, {{style}}")
 
-        _, user, _ = compose(
-            tmp_path, [], "greet", ["world"], {"style": "friendly"}
-        )
-        assert user == "hello world, friendly"
+        result = render_invocation(tmp_path, "greet", ["world"], {"style": "friendly"})
+        assert result == "hello world, friendly"
 
-    def test_compose_missing_profile_raises(self, tmp_path):
-        with pytest.raises(NotFoundError, match="unknown template"):
-            compose(tmp_path, ["nonexistent"], "__noop__", [], {})
-
-    def test_compose_missing_invocation_raises(self, tmp_path):
+    def test_render_missing_invocation_raises(self, tmp_path):
         with pytest.raises(NotFoundError, match="unknown invocation"):
-            compose(tmp_path, [], "nonexistent", [], {})
+            render_invocation(tmp_path, "nonexistent", [], {})
 
 
 class TestListItems:

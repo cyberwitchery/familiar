@@ -1,6 +1,6 @@
 [project]
 name = "familiar-cli"
-version = "0.0.3"
+version = "0.0.4"
 description = "compose and invoke ai agent prompts from reusable templates"
 readme = "readme.md"
 license = "MIT"

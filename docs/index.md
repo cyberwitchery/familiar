@@ -33,3 +33,5 @@ pip install familiar-cli
 - [conjurings](conjurings.md) - available conjurings and what they do
 - [invocations](invocations.md) - available task templates
 - [customization](customization.md) - add your own conjurings and invocations
+- [cli reference](cli.md) - all commands and options
+- [linting](linting.md) - validation rules and recommended structure

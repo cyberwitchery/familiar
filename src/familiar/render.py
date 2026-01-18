@@ -1,4 +1,5 @@
 """Render system and user prompts from templates and invocations."""
+
 from __future__ import annotations
 
 import re
@@ -86,17 +87,24 @@ def list_items(repo_root: Path, kind: str) -> list[tuple[str, str, bool]]:
                 first_line = content.split("\n", 1)[0].strip()
                 items[name] = (first_line, True)
 
-    return [(name, first_line, is_local) for name, (first_line, is_local) in sorted(items.items())]
+    return [
+        (name, first_line, is_local)
+        for name, (first_line, is_local) in sorted(items.items())
+    ]
 
 
-def compose(repo_root: Path, profiles: list[str], invocation: str, args: list[str], kv: dict[str, str]) -> tuple[str, str, str]:
-    """Compose system and user sections from selected profiles and invocation."""
+def compose_system(repo_root: Path, conjurings: list[str]) -> str:
+    """Compose system instructions from core + selected conjurings."""
     core = load_text(repo_root, "templates", "core").strip()
     parts: list[str] = [core]
-    for p in profiles:
-        parts.append(load_text(repo_root, "templates", p).strip())
-    system = "\n\n".join(parts)
+    for name in conjurings:
+        parts.append(load_text(repo_root, "templates", name).strip())
+    return "\n\n".join(parts)
+
+
+def render_invocation(
+    repo_root: Path, invocation: str, args: list[str], kv: dict[str, str]
+) -> str:
+    """Render an invocation with argument substitution."""
     inv = load_text(repo_root, "invocations", invocation).strip()
-    user = substitute(inv, args, kv)
-    full = f"{system}\n\n---\n\n{user}\n"
-    return system, user, full
+    return substitute(inv, args, kv)

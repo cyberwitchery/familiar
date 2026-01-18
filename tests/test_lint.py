@@ -1,0 +1,202 @@
+"""tests for familiar.lint."""
+
+from __future__ import annotations
+
+from familiar.lint import (
+    lint_template,
+    lint_invocation,
+    lint_all,
+    LintMessage,
+)
+
+
+class TestLintTemplate:
+    """tests for template linting."""
+
+    def test_valid_template(self):
+        content = "# my template\n\nsome content"
+        messages = lint_template(content, "test.md")
+        assert messages == []
+
+    def test_empty_template(self):
+        messages = lint_template("", "test.md")
+        assert len(messages) == 1
+        assert messages[0].level == "error"
+        assert "empty" in messages[0].message
+
+    def test_missing_heading(self):
+        content = "no heading here\njust text"
+        messages = lint_template(content, "test.md")
+        assert len(messages) == 1
+        assert messages[0].level == "warning"
+        assert "heading" in messages[0].message
+
+
+class TestLintInvocation:
+    """tests for invocation linting."""
+
+    def test_valid_invocation(self):
+        content = """task: do something
+
+inputs
+- $ARGUMENTS (required): what to do
+
+steps
+- step 1
+- step 2
+
+output
+- show results
+"""
+        messages = lint_invocation(content, "test.md")
+        assert messages == []
+
+    def test_empty_invocation(self):
+        messages = lint_invocation("", "test.md")
+        assert len(messages) == 1
+        assert messages[0].level == "error"
+        assert "empty" in messages[0].message
+
+    def test_missing_task_line(self):
+        content = """some random text
+
+inputs
+- $1 name
+
+output
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        task_warnings = [m for m in messages if "task:" in m.message]
+        assert len(task_warnings) == 1
+        assert task_warnings[0].level == "warning"
+
+    def test_missing_inputs_section(self):
+        content = """task: do something
+
+output
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        input_warnings = [m for m in messages if "inputs" in m.message.lower()]
+        assert len(input_warnings) == 1
+        assert input_warnings[0].level == "warning"
+
+    def test_missing_output_section(self):
+        content = """task: do something
+
+inputs
+- $ARGUMENTS
+"""
+        messages = lint_invocation(content, "test.md")
+        output_warnings = [m for m in messages if "output" in m.message.lower()]
+        assert len(output_warnings) == 1
+        assert output_warnings[0].level == "warning"
+
+    def test_accepts_various_task_verbs(self):
+        for verb in [
+            "task:",
+            "explain:",
+            "review:",
+            "refactor:",
+            "bootstrap",
+            "implement:",
+            "add:",
+            "fix:",
+        ]:
+            content = f"""{verb} something
+
+inputs
+- $ARGUMENTS
+
+output
+- results
+"""
+            messages = lint_invocation(content, f"test-{verb}.md")
+            task_warnings = [m for m in messages if "task:" in m.message]
+            assert task_warnings == [], f"Failed for verb: {verb}"
+
+    def test_accepts_arguments_section(self):
+        content = """task: do something
+
+arguments:
+- $1 name
+
+output
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        input_warnings = [m for m in messages if "inputs" in m.message.lower()]
+        assert input_warnings == []
+
+    def test_accepts_deliverables_section(self):
+        content = """task: do something
+
+inputs
+- $ARGUMENTS
+
+deliverables
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        output_warnings = [m for m in messages if "output" in m.message.lower()]
+        assert output_warnings == []
+
+    def test_undocumented_placeholder_warning(self):
+        content = """task: do something with {{myarg}}
+
+inputs
+- $ARGUMENTS
+
+output
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        placeholder_warnings = [m for m in messages if "{{myarg}}" in m.message]
+        assert len(placeholder_warnings) == 1
+        assert placeholder_warnings[0].level == "warning"
+
+    def test_documented_placeholder_no_warning(self):
+        content = """task: do something with {{myarg}}
+
+inputs
+- myarg (required): the argument
+
+output
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        placeholder_warnings = [m for m in messages if "{{myarg}}" in m.message]
+        assert placeholder_warnings == []
+
+
+class TestLintAll:
+    """tests for linting all templates and invocations."""
+
+    def test_lint_all_builtins(self, tmp_path):
+        # should lint all built-ins without errors
+        messages = lint_all(tmp_path)
+        errors = [m for m in messages if m.level == "error"]
+        assert errors == [], f"Unexpected errors: {errors}"
+
+    def test_lint_all_with_local_override(self, tmp_path):
+        templates = tmp_path / ".familiar" / "templates"
+        templates.mkdir(parents=True)
+        (templates / "bad.md").write_text("no heading")
+
+        messages = lint_all(tmp_path)
+        local_warnings = [m for m in messages if "bad.md" in m.file]
+        assert len(local_warnings) == 1
+        assert "heading" in local_warnings[0].message
+
+
+class TestLintMessage:
+    """tests for LintMessage formatting."""
+
+    def test_str_with_line(self):
+        msg = LintMessage(level="error", file="test.md", line=5, message="bad")
+        assert str(msg) == "error: test.md:5: bad"
+
+    def test_str_without_line(self):
+        msg = LintMessage(level="warning", file="test.md", line=None, message="warning")
+        assert str(msg) == "warning: test.md: warning"

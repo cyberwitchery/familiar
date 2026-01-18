@@ -1,4 +1,5 @@
 """Agent implementations for familiar."""
+
 from __future__ import annotations
 
 import subprocess
