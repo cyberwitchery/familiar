@@ -263,6 +263,20 @@ class TestCmdInvoke:
 class TestCmdList:
     """tests for list command."""
 
+    def test_list_both(self, tmp_path, capsys):
+        args = argparse.Namespace(
+            kind=None,
+            into=str(tmp_path),
+            verbose=False,
+        )
+        result = cmd_list(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "conjurings:" in captured.out
+        assert "invocations:" in captured.out
+        assert "core" in captured.out
+        assert "explain" in captured.out
+
     def test_list_conjurings(self, tmp_path, capsys):
         args = argparse.Namespace(
             kind="conjurings",

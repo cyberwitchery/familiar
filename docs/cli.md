@@ -86,17 +86,17 @@ familiar invoke codex security-review --conjurings sec
 
 ## familiar list
 
-list available conjurings or invocations.
+list available conjurings and invocations.
 
 ```
-familiar list <kind> [--into <path>] [-v|--verbose]
+familiar list [kind] [--into <path>] [-v|--verbose]
 ```
 
 **arguments:**
 
 | argument | description |
 |----------|-------------|
-| `kind` | what to list: `conjurings` or `invocations` |
+| `kind` | what to list: `conjurings` or `invocations` (default: both) |
 
 **options:**
 
@@ -114,12 +114,15 @@ familiar list <kind> [--into <path>] [-v|--verbose]
 **examples:**
 
 ```bash
-# list all conjurings
+# list everything
+familiar list
+
+# list only conjurings
 familiar list conjurings
 
 # list invocations with descriptions
 familiar list invocations -v
 
-# list conjurings in specific repo
-familiar list conjurings --into /path/to/repo
+# list in specific repo
+familiar list --into /path/to/repo
 ```

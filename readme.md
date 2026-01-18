@@ -46,8 +46,7 @@ familiar invoke codex bootstrap-rust myapp lib 1.78 mit
 list available conjurings and invocations:
 
 ```
-familiar list conjurings
-familiar list invocations -v
+familiar list
 ```
 
 ## customization

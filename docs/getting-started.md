@@ -49,17 +49,18 @@ this renders the `bootstrap-rust` invocation with the provided arguments and sen
 `list` shows available conjurings and invocations.
 
 ```bash
-familiar list <kind>
+familiar list [kind]
 ```
 
 example:
 
 ```bash
+familiar list
 familiar list conjurings
 familiar list invocations -v
 ```
 
-use `-v` to see the first line of each file as a description. local overrides are marked with `(local)`.
+omit `kind` to list both. use `-v` to see descriptions. local overrides are marked with `(local)`.
 
 ## supported agents
 

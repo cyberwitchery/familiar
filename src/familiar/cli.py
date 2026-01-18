@@ -92,8 +92,28 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     return run_agent(repo_root, args.agent, full, headless=args.headless)
 
 
+def _print_items(items: list[tuple[str, str, bool]], verbose: bool) -> None:
+    for name, first_line, is_local in items:
+        marker = " (local)" if is_local else ""
+        if verbose:
+            print(f"  {name}{marker}: {first_line}")
+        else:
+            print(f"  {name}{marker}")
+
+
 def cmd_list(args: argparse.Namespace) -> int:
     repo_root = find_repo_root(Path(args.into or os.getcwd()))
+
+    if args.kind is None:
+        # list both
+        conjurings = list_items(repo_root, "templates")
+        invocations = list_items(repo_root, "invocations")
+        print("conjurings:")
+        _print_items(conjurings, args.verbose)
+        print("\ninvocations:")
+        _print_items(invocations, args.verbose)
+        return 0
+
     # map CLI names to internal names
     kind = "templates" if args.kind == "conjurings" else args.kind
     items = list_items(repo_root, kind)
@@ -133,8 +153,8 @@ def main() -> None:
     invoke.add_argument("inv_args", nargs="*", help="positional arguments for the invocation")
     invoke.set_defaults(func=cmd_invoke)
 
-    list_cmd = sub.add_parser("list", help="list available conjurings or invocations")
-    list_cmd.add_argument("kind", choices=["conjurings", "invocations"], help="what to list")
+    list_cmd = sub.add_parser("list", help="list available conjurings and invocations")
+    list_cmd.add_argument("kind", nargs="?", choices=["conjurings", "invocations"], help="what to list (default: both)")
     list_cmd.add_argument("--into", help="target repo path (default: current directory)")
     list_cmd.add_argument("-v", "--verbose", action="store_true", help="show first line of each file")
     list_cmd.set_defaults(func=cmd_list)

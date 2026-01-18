@@ -127,6 +127,18 @@ class TestHelpIntegration:
 class TestListIntegration:
     """integration tests for list command."""
 
+    def test_list_both(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "familiar.cli", "list"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert "conjurings:" in result.stdout
+        assert "invocations:" in result.stdout
+        assert "core" in result.stdout
+        assert "explain" in result.stdout
+
     def test_list_conjurings(self):
         result = subprocess.run(
             [sys.executable, "-m", "familiar.cli", "list", "conjurings"],

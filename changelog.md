@@ -2,7 +2,7 @@
 
 ## 0.0.2
 
-- `list` command to discover available conjurings and invocations
+- `list` command to discover available conjurings and invocations (lists both by default)
 - renamed "profiles" to "conjurings" throughout
 
 ## 0.0.1
