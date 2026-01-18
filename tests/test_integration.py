@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from pathlib import Path
 
 
 class TestConjureIntegration:
@@ -48,7 +47,7 @@ class TestConjureIntegration:
         assert config_file.exists()
         import json
         config = json.loads(config_file.read_text())
-        assert config["profiles"] == ["python", "infra"]
+        assert config["conjurings"] == ["python", "infra"]
 
     def test_conjure_unknown_profile_fails(self, tmp_path):
         result = subprocess.run(
@@ -102,7 +101,7 @@ class TestHelpIntegration:
             text=True,
         )
         assert result.returncode == 0
-        assert "profiles" in result.stdout
+        assert "conjurings" in result.stdout
 
     def test_invoke_help(self):
         result = subprocess.run(
@@ -113,3 +112,61 @@ class TestHelpIntegration:
         assert result.returncode == 0
         assert "invocation" in result.stdout
         assert "--headless" in result.stdout
+
+    def test_list_help(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "familiar.cli", "list", "--help"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert "conjurings" in result.stdout
+        assert "invocations" in result.stdout
+
+
+class TestListIntegration:
+    """integration tests for list command."""
+
+    def test_list_conjurings(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "familiar.cli", "list", "conjurings"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert "core" in result.stdout
+        assert "python" in result.stdout
+        assert "rust" in result.stdout
+
+    def test_list_invocations(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "familiar.cli", "list", "invocations"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert "explain" in result.stdout
+        assert "refactor" in result.stdout
+
+    def test_list_conjurings_verbose(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "familiar.cli", "list", "conjurings", "-v"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        # verbose includes description after colon
+        assert ":" in result.stdout
+
+    def test_list_with_local_override(self, tmp_path):
+        templates = tmp_path / ".familiar" / "templates"
+        templates.mkdir(parents=True)
+        (templates / "custom.md").write_text("# my custom profile")
+
+        result = subprocess.run(
+            [sys.executable, "-m", "familiar.cli", "list", "conjurings", "--into", str(tmp_path)],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert "custom (local)" in result.stdout

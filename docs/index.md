@@ -2,11 +2,11 @@
 
 compose and invoke ai agent prompts from reusable templates.
 
-familiar helps you build consistent, reusable prompts for ai coding agents like codex and claude. instead of writing ad-hoc instructions every time, you define **profiles** (system-level guidelines) and **invocations** (task-specific prompts) that can be mixed and matched.
+familiar helps you build consistent, reusable prompts for ai coding agents like codex and claude. instead of writing ad-hoc instructions every time, you define **conjurings** (system-level guidelines) and **invocations** (task-specific prompts) that can be mixed and matched.
 
 ## features
 
-- **profiles** - reusable system instructions (rust, python, infra, security, etc.)
+- **conjurings** - reusable system instructions (rust, python, infra, security, etc.)
 - **invocations** - task templates with placeholder substitution
 - **local overrides** - customize built-ins per repository
 - **agent support** - works with codex and claude cli
@@ -30,6 +30,6 @@ pip install familiar-cli
 ## next steps
 
 - [getting started](getting-started.md) - first-time setup
-- [profiles](profiles.md) - available profiles and what they do
+- [conjurings](conjurings.md) - available conjurings and what they do
 - [invocations](invocations.md) - available task templates
-- [customization](customization.md) - add your own profiles and invocations
+- [customization](customization.md) - add your own conjurings and invocations

@@ -1,10 +1,8 @@
 """tests for familiar.cli."""
 from __future__ import annotations
 
-import json
 import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import argparse
 
 from familiar.cli import (
@@ -18,6 +16,7 @@ from familiar.cli import (
     run_agent,
     cmd_conjure,
     cmd_invoke,
+    cmd_list,
 )
 
 
@@ -69,16 +68,16 @@ class TestLoadSaveConfig:
         assert result == {}
 
     def test_save_and_load(self, tmp_path):
-        cfg = {"profiles": ["rust", "sec"]}
+        cfg = {"conjurings": ["rust", "sec"]}
         save_config(tmp_path, "claude", cfg)
         result = load_config(tmp_path, "claude")
         assert result == cfg
 
     def test_save_overwrites(self, tmp_path):
-        save_config(tmp_path, "codex", {"profiles": ["old"]})
-        save_config(tmp_path, "codex", {"profiles": ["new"]})
+        save_config(tmp_path, "codex", {"conjurings": ["old"]})
+        save_config(tmp_path, "codex", {"conjurings": ["new"]})
         result = load_config(tmp_path, "codex")
-        assert result == {"profiles": ["new"]}
+        assert result == {"conjurings": ["new"]}
 
 
 class TestWriteInstruction:
@@ -141,7 +140,7 @@ class TestCmdConjure:
     def test_writes_output_file(self, tmp_path):
         args = argparse.Namespace(
             agent="claude",
-            profiles=["python"],
+            conjurings=["python"],
             into=str(tmp_path),
         )
         result = cmd_conjure(args)
@@ -153,17 +152,17 @@ class TestCmdConjure:
     def test_saves_config(self, tmp_path):
         args = argparse.Namespace(
             agent="codex",
-            profiles=["rust", "sec"],
+            conjurings=["rust", "sec"],
             into=str(tmp_path),
         )
         cmd_conjure(args)
         cfg = load_config(tmp_path, "codex")
-        assert cfg == {"profiles": ["rust", "sec"]}
+        assert cfg == {"conjurings": ["rust", "sec"]}
 
     def test_unknown_profile_raises(self, tmp_path):
         args = argparse.Namespace(
             agent="claude",
-            profiles=["nonexistent"],
+            conjurings=["nonexistent"],
             into=str(tmp_path),
         )
         with pytest.raises(SystemExit, match="unknown template"):
@@ -173,9 +172,9 @@ class TestCmdConjure:
 class TestCmdInvoke:
     """tests for invoke command."""
 
-    def test_uses_saved_profiles(self, tmp_path):
+    def test_uses_saved_conjurings(self, tmp_path):
         # save config first
-        save_config(tmp_path, "claude", {"profiles": ["python"]})
+        save_config(tmp_path, "claude", {"conjurings": ["python"]})
 
         with patch("familiar.cli.run_agent", return_value=0) as mock_run:
             args = argparse.Namespace(
@@ -183,7 +182,7 @@ class TestCmdInvoke:
                 invocation="explain",
                 into=str(tmp_path),
                 headless=True,
-                profiles=None,
+                conjurings=None,
                 kv=None,
                 inv_args=["some code"],
             )
@@ -194,8 +193,8 @@ class TestCmdInvoke:
             prompt = call_args[0][2]
             assert "python" in prompt.lower()
 
-    def test_override_profiles(self, tmp_path):
-        save_config(tmp_path, "claude", {"profiles": ["python"]})
+    def test_override_conjurings(self, tmp_path):
+        save_config(tmp_path, "claude", {"conjurings": ["python"]})
 
         with patch("familiar.cli.run_agent", return_value=0) as mock_run:
             args = argparse.Namespace(
@@ -203,7 +202,7 @@ class TestCmdInvoke:
                 invocation="explain",
                 into=str(tmp_path),
                 headless=True,
-                profiles=["rust"],
+                conjurings=["rust"],
                 kv=None,
                 inv_args=[],
             )
@@ -212,20 +211,20 @@ class TestCmdInvoke:
             assert "rust" in prompt.lower()
             assert "python" not in prompt.lower() or "rust" in prompt.lower()
 
-    def test_warns_no_profiles(self, tmp_path, capsys):
+    def test_warns_no_conjurings(self, tmp_path, capsys):
         with patch("familiar.cli.run_agent", return_value=0):
             args = argparse.Namespace(
                 agent="claude",
                 invocation="explain",
                 into=str(tmp_path),
                 headless=True,
-                profiles=None,
+                conjurings=None,
                 kv=None,
                 inv_args=[],
             )
             cmd_invoke(args)
             captured = capsys.readouterr()
-            assert "no profiles specified" in captured.err
+            assert "no conjurings specified" in captured.err
 
     def test_unknown_invocation_raises(self, tmp_path):
         args = argparse.Namespace(
@@ -233,7 +232,7 @@ class TestCmdInvoke:
             invocation="nonexistent",
             into=str(tmp_path),
             headless=True,
-            profiles=[],
+            conjurings=[],
             kv=None,
             inv_args=[],
         )
@@ -252,10 +251,77 @@ class TestCmdInvoke:
                 invocation="custom",
                 into=str(tmp_path),
                 headless=True,
-                profiles=[],
+                conjurings=[],
                 kv=["mykey=myvalue"],
                 inv_args=[],
             )
             cmd_invoke(args)
             prompt = mock_run.call_args[0][2]
             assert "value is myvalue" in prompt
+
+
+class TestCmdList:
+    """tests for list command."""
+
+    def test_list_conjurings(self, tmp_path, capsys):
+        args = argparse.Namespace(
+            kind="conjurings",
+            into=str(tmp_path),
+            verbose=False,
+        )
+        result = cmd_list(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "core" in captured.out
+        assert "python" in captured.out
+
+    def test_list_invocations(self, tmp_path, capsys):
+        args = argparse.Namespace(
+            kind="invocations",
+            into=str(tmp_path),
+            verbose=False,
+        )
+        result = cmd_list(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "explain" in captured.out
+        assert "refactor" in captured.out
+
+    def test_list_verbose(self, tmp_path, capsys):
+        args = argparse.Namespace(
+            kind="conjurings",
+            into=str(tmp_path),
+            verbose=True,
+        )
+        cmd_list(args)
+        captured = capsys.readouterr()
+        # verbose mode includes first line after colon
+        assert ":" in captured.out
+
+    def test_list_local_marked(self, tmp_path, capsys):
+        templates = tmp_path / ".familiar" / "templates"
+        templates.mkdir(parents=True)
+        (templates / "custom.md").write_text("# my custom profile")
+
+        args = argparse.Namespace(
+            kind="conjurings",
+            into=str(tmp_path),
+            verbose=False,
+        )
+        cmd_list(args)
+        captured = capsys.readouterr()
+        assert "custom (local)" in captured.out
+
+    def test_list_override_marked_local(self, tmp_path, capsys):
+        templates = tmp_path / ".familiar" / "templates"
+        templates.mkdir(parents=True)
+        (templates / "python.md").write_text("# custom python")
+
+        args = argparse.Namespace(
+            kind="conjurings",
+            into=str(tmp_path),
+            verbose=False,
+        )
+        cmd_list(args)
+        captured = capsys.readouterr()
+        assert "python (local)" in captured.out

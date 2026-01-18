@@ -2,11 +2,9 @@
 from __future__ import annotations
 
 import pytest
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from familiar.agents import (
-    Agent,
     CodexAgent,
     ClaudeAgent,
     AGENTS,

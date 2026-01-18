@@ -1,6 +1,6 @@
-# profiles
+# conjurings
 
-profiles are system-level instructions that shape how the agent approaches tasks. they're combined when you run `conjure`.
+conjurings are system-level instructions that shape how the agent approaches tasks. they're combined when you run `conjure`.
 
 ## core
 
@@ -76,9 +76,9 @@ security-focused guidelines:
 - add debug logging of secrets
 - introduce permissive wildcard policies
 
-## combining profiles
+## combining conjurings
 
-profiles are additive. order doesn't matter.
+conjurings are additive. order doesn't matter.
 
 ```bash
 # rust project with security focus
@@ -87,6 +87,6 @@ familiar conjure codex rust sec
 # python infrastructure tooling
 familiar conjure claude python infra
 
-# all profiles
+# all conjurings
 familiar conjure codex rust python infra sec
 ```

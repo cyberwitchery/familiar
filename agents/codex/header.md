@@ -1,6 +1,6 @@
 # agents
 
-this file is composed from selected profiles.
+this file is composed from selected conjurings.
 
 - minimal diffs.
 - show diffs + repro commands.

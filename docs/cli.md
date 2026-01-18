@@ -5,7 +5,7 @@
 compose system instructions for an agent.
 
 ```
-familiar conjure <agent> <profiles...> [--into <path>]
+familiar conjure <agent> <conjurings...> [--into <path>]
 ```
 
 **arguments:**
@@ -13,7 +13,7 @@ familiar conjure <agent> <profiles...> [--into <path>]
 | argument | description |
 |----------|-------------|
 | `agent` | target agent: `codex` or `claude` |
-| `profiles` | one or more profile names |
+| `conjurings` | one or more profile names |
 
 **options:**
 
@@ -23,7 +23,7 @@ familiar conjure <agent> <profiles...> [--into <path>]
 
 **behavior:**
 
-- combines core profile with specified profiles
+- combines core profile with specified conjurings
 - writes `AGENTS.md` (codex) or `CLAUDE.md` (claude) to repo root
 - saves profile selection to `.familiar/<agent>.json`
 
@@ -42,7 +42,7 @@ familiar conjure claude python --into /path/to/repo
 run a task prompt through the agent.
 
 ```
-familiar invoke <agent> <invocation> [--into <path>] [--headless] [--profiles <profiles...>] [--kv <key=value>...] [args...]
+familiar invoke <agent> <invocation> [--into <path>] [--headless] [--conjurings <conjurings...>] [--kv <key=value>...] [args...]
 ```
 
 **arguments:**
@@ -59,12 +59,12 @@ familiar invoke <agent> <invocation> [--into <path>] [--headless] [--profiles <p
 |--------|-------------|
 | `--into` | target repository path (default: current directory) |
 | `--headless` | run without interactive ui |
-| `--profiles` | override saved profiles |
+| `--conjurings` | override saved conjurings |
 | `--kv` | named arguments as `key=value` pairs |
 
 **behavior:**
 
-- loads profiles from `.familiar/<agent>.json` (or uses `--profiles`)
+- loads conjurings from `.familiar/<agent>.json` (or uses `--conjurings`)
 - renders invocation with provided arguments
 - runs the agent with the composed prompt
 
@@ -80,6 +80,46 @@ familiar invoke codex add-tests "parse_config" --headless
 # with named arguments
 familiar invoke codex implement-feature --kv spec="add caching"
 
-# override profiles
-familiar invoke codex security-review --profiles sec
+# override conjurings
+familiar invoke codex security-review --conjurings sec
+```
+
+## familiar list
+
+list available conjurings or invocations.
+
+```
+familiar list <kind> [--into <path>] [-v|--verbose]
+```
+
+**arguments:**
+
+| argument | description |
+|----------|-------------|
+| `kind` | what to list: `conjurings` or `invocations` |
+
+**options:**
+
+| option | description |
+|--------|-------------|
+| `--into` | target repository path (default: current directory) |
+| `-v`, `--verbose` | show first line of each file |
+
+**behavior:**
+
+- lists built-in and local items
+- local overrides are marked with `(local)`
+- items are sorted alphabetically
+
+**examples:**
+
+```bash
+# list all conjurings
+familiar list conjurings
+
+# list invocations with descriptions
+familiar list invocations -v
+
+# list conjurings in specific repo
+familiar list conjurings --into /path/to/repo
 ```

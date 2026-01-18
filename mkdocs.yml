@@ -12,7 +12,7 @@ theme:
 nav:
   - home: index.md
   - getting started: getting-started.md
-  - profiles: profiles.md
+  - conjurings: conjurings.md
   - invocations: invocations.md
   - customization: customization.md
   - cli reference: cli.md

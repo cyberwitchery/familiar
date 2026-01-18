@@ -17,7 +17,7 @@ pip install familiar-cli
 
 ## usage
 
-conjure profiles to create system instructions for an agent:
+conjure conjurings to create system instructions for an agent:
 
 ```
 familiar conjure codex rust infra sec
@@ -27,6 +27,13 @@ invoke an action prompt:
 
 ```
 familiar invoke codex bootstrap-rust myapp lib 1.78 mit
+```
+
+list available conjurings and invocations:
+
+```
+familiar list conjurings
+familiar list invocations -v
 ```
 
 ## customization

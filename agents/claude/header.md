@@ -1,6 +1,6 @@
 # agent
 
-this file is composed from selected profiles.
+this file is composed from selected conjurings.
 
 - be direct. minimal diffs.
 - ask before running destructive commands or touching prod.

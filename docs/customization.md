@@ -1,6 +1,6 @@
 # customization
 
-familiar can be extended with local profiles and invocations.
+familiar can be extended with local conjurings and invocations.
 
 ## local overrides
 
@@ -18,9 +18,9 @@ create a `.familiar/` directory in your repository:
 
 local files take precedence over built-ins.
 
-## writing profiles
+## writing conjurings
 
-profiles are markdown files with guidelines for the agent. they should be concise and actionable.
+conjurings are markdown files with guidelines for the agent. they should be concise and actionable.
 
 example custom profile for a django project:
 

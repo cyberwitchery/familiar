@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .agents import AGENTS, get_agent
-from .render import compose, NotFoundError
+from .render import compose, list_items, NotFoundError
 
 
 def find_repo_root(start: Path) -> Path:
@@ -69,11 +69,11 @@ def run_agent(repo_root: Path, agent_name: str, prompt: str, headless: bool) -> 
 def cmd_conjure(args: argparse.Namespace) -> int:
     repo_root = find_repo_root(Path(args.into or os.getcwd()))
     try:
-        system, _, _ = compose(repo_root, args.profiles, invocation="__noop__", args=[], kv={})
+        system, _, _ = compose(repo_root, args.conjurings, invocation="__noop__", args=[], kv={})
     except NotFoundError as e:
         raise SystemExit(str(e))
     write_instruction(repo_root, args.agent, system)
-    save_config(repo_root, args.agent, {"profiles": args.profiles})
+    save_config(repo_root, args.agent, {"conjurings": args.conjurings})
     print(f"wrote instructions for {args.agent}")
     return 0
 
@@ -81,15 +81,34 @@ def cmd_conjure(args: argparse.Namespace) -> int:
 def cmd_invoke(args: argparse.Namespace) -> int:
     repo_root = find_repo_root(Path(args.into or os.getcwd()))
     cfg = load_config(repo_root, args.agent)
-    profiles = args.profiles if args.profiles is not None else cfg.get("profiles", [])
-    if not profiles:
-        print("warning: no profiles specified, using core only", file=sys.stderr)
+    conjurings = args.conjurings if args.conjurings is not None else cfg.get("conjurings", [])
+    if not conjurings:
+        print("warning: no conjurings specified, using core only", file=sys.stderr)
     kv = parse_kv(args.kv or [])
     try:
-        _, _, full = compose(repo_root, profiles, args.invocation, args.inv_args or [], kv)
+        _, _, full = compose(repo_root, conjurings, args.invocation, args.inv_args or [], kv)
     except NotFoundError as e:
         raise SystemExit(str(e))
     return run_agent(repo_root, args.agent, full, headless=args.headless)
+
+
+def cmd_list(args: argparse.Namespace) -> int:
+    repo_root = find_repo_root(Path(args.into or os.getcwd()))
+    # map CLI names to internal names
+    kind = "templates" if args.kind == "conjurings" else args.kind
+    items = list_items(repo_root, kind)
+
+    if not items:
+        print(f"no {kind} found")
+        return 0
+
+    for name, first_line, is_local in items:
+        marker = " (local)" if is_local else ""
+        if args.verbose:
+            print(f"{name}{marker}: {first_line}")
+        else:
+            print(f"{name}{marker}")
+    return 0
 
 
 def main() -> None:
@@ -100,7 +119,7 @@ def main() -> None:
 
     conjure = sub.add_parser("conjure", help="compose system instructions for an agent")
     conjure.add_argument("agent", choices=agent_choices)
-    conjure.add_argument("profiles", nargs="+", help="profile names, e.g. rust infra sec")
+    conjure.add_argument("conjurings", nargs="+", help="conjuring names, e.g. rust infra sec")
     conjure.add_argument("--into", help="target repo path (default: current directory)")
     conjure.set_defaults(func=cmd_conjure)
 
@@ -109,10 +128,16 @@ def main() -> None:
     invoke.add_argument("invocation")
     invoke.add_argument("--into", help="target repo path (default: current directory)")
     invoke.add_argument("--headless", action="store_true", help="run without interactive UI")
-    invoke.add_argument("--profiles", nargs="*", default=None, help="override saved profiles")
+    invoke.add_argument("--conjurings", nargs="*", default=None, help="override saved conjurings")
     invoke.add_argument("--kv", nargs="*", help="named arguments as key=value pairs")
     invoke.add_argument("inv_args", nargs="*", help="positional arguments for the invocation")
     invoke.set_defaults(func=cmd_invoke)
+
+    list_cmd = sub.add_parser("list", help="list available conjurings or invocations")
+    list_cmd.add_argument("kind", choices=["conjurings", "invocations"], help="what to list")
+    list_cmd.add_argument("--into", help="target repo path (default: current directory)")
+    list_cmd.add_argument("-v", "--verbose", action="store_true", help="show first line of each file")
+    list_cmd.set_defaults(func=cmd_list)
 
     args = parser.parse_args()
     rc = args.func(args)

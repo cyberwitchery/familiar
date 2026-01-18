@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import pytest
-from pathlib import Path
 
-from familiar.render import substitute, load_text, compose, NotFoundError
+from familiar.render import substitute, load_text, compose, list_items, NotFoundError
 
 
 class TestSubstitute:
@@ -94,7 +93,7 @@ class TestLoadText:
 class TestCompose:
     """tests for composing prompts."""
 
-    def test_compose_with_profiles(self, tmp_path):
+    def test_compose_with_conjurings(self, tmp_path):
         system, user, full = compose(
             tmp_path, ["python"], "__noop__", [], {}
         )
@@ -116,7 +115,7 @@ class TestCompose:
         system, user, full = compose(
             tmp_path, ["first", "second"], "test", [], {}
         )
-        # verify order: core, then profiles in order
+        # verify order: core, then conjurings in order
         assert system == "CORE\n\nFIRST\n\nSECOND"
         assert user == "INVOCATION"
         assert full == "CORE\n\nFIRST\n\nSECOND\n\n---\n\nINVOCATION\n"
@@ -138,3 +137,66 @@ class TestCompose:
     def test_compose_missing_invocation_raises(self, tmp_path):
         with pytest.raises(NotFoundError, match="unknown invocation"):
             compose(tmp_path, [], "nonexistent", [], {})
+
+
+class TestListItems:
+    """tests for listing templates and invocations."""
+
+    def test_list_builtin_templates(self, tmp_path):
+        items = list_items(tmp_path, "templates")
+        names = [name for name, _, _ in items]
+        assert "core" in names
+        assert "python" in names
+        assert "rust" in names
+
+    def test_list_builtin_invocations(self, tmp_path):
+        items = list_items(tmp_path, "invocations")
+        names = [name for name, _, _ in items]
+        assert "explain" in names
+        assert "refactor" in names
+
+    def test_list_excludes_underscore_files(self, tmp_path):
+        items = list_items(tmp_path, "invocations")
+        names = [name for name, _, _ in items]
+        assert "__noop__" not in names
+
+    def test_list_includes_first_line(self, tmp_path):
+        items = list_items(tmp_path, "templates")
+        core_items = [(n, f, loc) for n, f, loc in items if n == "core"]
+        assert len(core_items) == 1
+        _, first_line, _ = core_items[0]
+        assert first_line  # not empty
+
+    def test_list_local_override_marked(self, tmp_path):
+        templates = tmp_path / ".familiar" / "templates"
+        templates.mkdir(parents=True)
+        (templates / "core.md").write_text("# local core")
+
+        items = list_items(tmp_path, "templates")
+        core_items = [(n, f, loc) for n, f, loc in items if n == "core"]
+        assert len(core_items) == 1
+        _, first_line, is_local = core_items[0]
+        assert is_local is True
+        assert first_line == "# local core"
+
+    def test_list_local_custom_template(self, tmp_path):
+        templates = tmp_path / ".familiar" / "templates"
+        templates.mkdir(parents=True)
+        (templates / "custom.md").write_text("# my custom")
+
+        items = list_items(tmp_path, "templates")
+        custom_items = [(n, f, loc) for n, f, loc in items if n == "custom"]
+        assert len(custom_items) == 1
+        _, first_line, is_local = custom_items[0]
+        assert is_local is True
+        assert first_line == "# my custom"
+
+    def test_list_sorted(self, tmp_path):
+        items = list_items(tmp_path, "templates")
+        names = [name for name, _, _ in items]
+        assert names == sorted(names)
+
+    def test_list_empty_dir(self, tmp_path):
+        # no local overrides, but still gets builtins
+        items = list_items(tmp_path, "templates")
+        assert len(items) > 0
