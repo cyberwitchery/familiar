@@ -25,37 +25,41 @@ def load_text(repo_root: Path, kind: str, name: str) -> str:
     try:
         return (resources.files(pkg) / f"{name}.md").read_text(encoding="utf-8")
     except (FileNotFoundError, TypeError):
-        # TypeError: some python versions raise this for missing resources
+        # TypeError: some python versions (e.g. 3.10) raise this if the
+        # resource package exists but the specific file is missing.
         raise NotFoundError(f"unknown {kind.rstrip('s')}: {name}")
 
 
 def substitute(text: str, args: list[str], kv: dict[str, str]) -> str:
-    """Substitute $1, $2, ... $ARGUMENTS and {{key}} placeholders.
-
-    Note: positional args are substituted before kv args, so user-supplied
-    args containing {{foo}} could get expanded. This is accepted because:
-    (1) args come from the same user invoking the CLI, and (2) output goes
-    to the AI agent, not executed directly. No security boundary is crossed.
-    """
+    """Substitute $1, $2, ... $ARGUMENTS and {{key}} placeholders in a single pass."""
     missing: list[str] = []
 
     def repl(m: re.Match[str]) -> str:
-        ident = m.group(1)
-        if ident == "ARGUMENTS":
-            return " ".join(args).strip()
-        if ident.isdigit():
-            idx = int(ident) - 1
+        pos_ident = m.group(1)
+        named_ident = m.group(2)
+
+        if pos_ident:
+            if pos_ident == "ARGUMENTS":
+                return " ".join(args).strip()
+            idx = int(pos_ident) - 1
             if 0 <= idx < len(args):
                 return args[idx]
-            missing.append(f"${ident}")
+            missing.append(f"${pos_ident}")
             return ""
+
+        if named_ident:
+            return kv.get(named_ident, m.group(0))
+
         return m.group(0)
 
-    text = re.sub(r"\$(ARGUMENTS|\d+)", repl, text)
+    # Combined regex for both types of placeholders:
+    # Group 1: \$(ARGUMENTS|\d+)
+    # Group 2: {{(\w+)}}
+    pattern = re.compile(r"\$(ARGUMENTS|\d+)|{{(\w+)}}")
+    text = pattern.sub(repl, text)
+
     if missing:
         print(f"warning: missing arguments: {', '.join(missing)}", file=sys.stderr)
-    for k, v in kv.items():
-        text = text.replace(f"{{{{{k}}}}}", v)
     return text
 
 

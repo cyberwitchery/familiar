@@ -143,11 +143,23 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
     named = set(_NAMED_PLACEHOLDER.findall(content))
 
     # Check if placeholders are mentioned in content (loose check)
-    content_lower = content.lower()
+    # Prefer checking the inputs section if it exists
+    inputs_match = _INPUTS_SECTION.search(content)
+    if inputs_match:
+        start = inputs_match.end()
+        # Look ahead for the next markdown heading or end of file
+        next_heading = re.search(r"^#", content[start:], re.MULTILINE)
+        search_area = (
+            content[start : start + next_heading.start()]
+            if next_heading
+            else content[start:]
+        ).lower()
+    else:
+        search_area = content.lower()
+
     for placeholder in named:
-        # Check if placeholder name appears somewhere (likely in inputs section)
-        # Remove the placeholder itself (lowercased to match content_lower) before checking
-        if placeholder.lower() not in content_lower.replace(
+        # Check if placeholder name appears in search area
+        if placeholder.lower() not in search_area.replace(
             f"{{{{{placeholder.lower()}}}}}", ""
         ):
             messages.append(
@@ -159,16 +171,12 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
                 )
             )
 
-    # Check for undocumented positional args (heuristic: $N should appear with description)
+    # Check for undocumented positional args
     for p in positional:
         if p == "ARGUMENTS":
             continue
-        # Look for patterns indicating the placeholder is documented:
-        #   - "name: $1" or "name $1" (description before)
-        #   - "$1 name" or "$1 `name`" (description after, plain or backtick-quoted)
-        #   - "$1 (" (placeholder with parenthetical like "required")
         pattern = rf"(\w+[:\s]+\${p}|\${p}\s+[`\w]|\${p}\s*\()"
-        if not re.search(pattern, content):
+        if not re.search(pattern, search_area):
             messages.append(
                 LintMessage(
                     level="warning",
@@ -217,6 +225,49 @@ def load_linters(kind: Literal["templates", "invocations"]) -> list[LinterFunc]:
     return linters
 
 
+def lint_collection(
+    repo_root: Path,
+    kind: Literal["templates", "invocations"],
+    builtin_linter: LinterFunc,
+    plugin_linters: list[LinterFunc],
+) -> list[LintMessage]:
+    """Lint a collection of items (templates or invocations)."""
+    messages: list[LintMessage] = []
+    for name, _, is_local in list_items(repo_root, kind):
+        try:
+            content = load_text(repo_root, kind, name)
+            prefix = (
+                f".familiar/{kind}/{name}.md"
+                if is_local
+                else f"(builtin) {kind}/{name}.md"
+            )
+            # Built-in linter
+            messages.extend(builtin_linter(content, prefix))
+            # Plugin linters
+            for linter in plugin_linters:
+                try:
+                    messages.extend(linter(content, prefix))
+                except Exception as e:
+                    messages.append(
+                        LintMessage(
+                            level="error",
+                            file=prefix,
+                            line=None,
+                            message=f"plugin linter failed: {e}",
+                        )
+                    )
+        except Exception as e:
+            messages.append(
+                LintMessage(
+                    level="error",
+                    file=f"{kind}/{name}.md",
+                    line=None,
+                    message=f"failed to load: {e}",
+                )
+            )
+    return messages
+
+
 def lint_all(repo_root: Path) -> list[LintMessage]:
     """Lint all templates and invocations.
 
@@ -231,71 +282,13 @@ def lint_all(repo_root: Path) -> list[LintMessage]:
     invocation_linters = load_linters("invocations")
 
     # Lint templates
-    for name, _, is_local in list_items(repo_root, "templates"):
-        try:
-            content = load_text(repo_root, "templates", name)
-            prefix = (
-                f".familiar/templates/{name}.md"
-                if is_local
-                else f"(builtin) templates/{name}.md"
-            )
-            # Built-in linter
-            messages.extend(lint_template(content, prefix))
-            # Plugin linters
-            for linter in template_linters:
-                try:
-                    messages.extend(linter(content, prefix))
-                except Exception as e:
-                    messages.append(
-                        LintMessage(
-                            level="error",
-                            file=prefix,
-                            line=None,
-                            message=f"plugin linter failed: {e}",
-                        )
-                    )
-        except Exception as e:
-            messages.append(
-                LintMessage(
-                    level="error",
-                    file=f"templates/{name}.md",
-                    line=None,
-                    message=f"failed to load: {e}",
-                )
-            )
+    messages.extend(
+        lint_collection(repo_root, "templates", lint_template, template_linters)
+    )
 
     # Lint invocations
-    for name, _, is_local in list_items(repo_root, "invocations"):
-        try:
-            content = load_text(repo_root, "invocations", name)
-            prefix = (
-                f".familiar/invocations/{name}.md"
-                if is_local
-                else f"(builtin) invocations/{name}.md"
-            )
-            # Built-in linter
-            messages.extend(lint_invocation(content, prefix))
-            # Plugin linters
-            for linter in invocation_linters:
-                try:
-                    messages.extend(linter(content, prefix))
-                except Exception as e:
-                    messages.append(
-                        LintMessage(
-                            level="error",
-                            file=prefix,
-                            line=None,
-                            message=f"plugin linter failed: {e}",
-                        )
-                    )
-        except Exception as e:
-            messages.append(
-                LintMessage(
-                    level="error",
-                    file=f"invocations/{name}.md",
-                    line=None,
-                    message=f"failed to load: {e}",
-                )
-            )
+    messages.extend(
+        lint_collection(repo_root, "invocations", lint_invocation, invocation_linters)
+    )
 
     return messages

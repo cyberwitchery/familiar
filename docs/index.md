@@ -8,8 +8,9 @@ familiar helps you build consistent, reusable prompts for ai coding agents like 
 
 - **conjurings** - reusable system instructions (rust, python, infra, security, etc.)
 - **invocations** - task templates with placeholder substitution
-- **local overrides** - customize built-ins per repository
+- **local overrides** - customize built-ins per repository or directory
 - **agent support** - works with codex, claude, and plugin agents
+- **agnostic** - works in any project directory (no git required)
 
 ## quick example
 

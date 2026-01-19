@@ -1,5 +1,13 @@
 # changelog
 
+## 0.1.1
+
+- **improved placeholder substitution**: now uses a single-pass regex to prevent unintentional secondary expansion of user-provided content
+- **refined linter**: placeholder documentation checks now prioritize `## inputs` and `## arguments` sections for better accuracy
+- **improved claude agent**: now uses the repository root as the working directory for more consistent behavior
+- **git agnostic**: clarified that the tool works in any directory, falling back to the current directory if `.git` is not found
+- **internal refactoring**: consolidated linting logic to improve maintainability
+
 ## 0.1.0
 
 - **plugin architecture**: extensible via Python entry points

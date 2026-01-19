@@ -162,7 +162,9 @@ class TestClaudeAgent:
         with patch("familiar.agents.subprocess.call", return_value=0) as mock_call:
             result = agent.run(tmp_path, "test prompt", headless=True)
             assert result == 0
-            mock_call.assert_called_once_with(["claude", "-p", "test prompt"])
+            mock_call.assert_called_once_with(
+                ["claude", "-p", "test prompt"], cwd=tmp_path
+            )
 
     def test_run_interactive(self, tmp_path):
         agent = ClaudeAgent()
@@ -170,7 +172,7 @@ class TestClaudeAgent:
         with patch("familiar.agents.subprocess.call", return_value=0) as mock_call:
             result = agent.run(tmp_path, "test prompt", headless=False)
             assert result == 0
-            mock_call.assert_called_once_with(["claude", "test prompt"])
+            mock_call.assert_called_once_with(["claude", "test prompt"], cwd=tmp_path)
 
     def test_run_returns_exit_code(self, tmp_path):
         agent = ClaudeAgent()
