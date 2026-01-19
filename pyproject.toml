@@ -6,7 +6,7 @@ readme = "readme.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
-    { name = "cyberwitchery labs", email = "contact@cyberwitchery.com" }
+    { name = "cyberwitchery lab", email = "contact@cyberwitchery.com" }
 ]
 keywords = ["ai", "agents", "prompts", "cli", "codex", "claude"]
 classifiers = [
