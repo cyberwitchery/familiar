@@ -8,7 +8,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from .agents import AGENTS, get_agent
+from .agents import get_agents, get_agent
 from .lint import lint_all
 from .render import render_invocation, compose_system, list_items, NotFoundError
 
@@ -46,7 +46,7 @@ def write_instruction(repo_root: Path, agent_name: str, system: str) -> None:
     try:
         agent = get_agent(agent_name)
     except KeyError as e:
-        raise CliError(str(e), hint=f"valid agents: {', '.join(AGENTS.keys())}")
+        raise CliError(str(e), hint=f"valid agents: {', '.join(get_agents().keys())}")
     (repo_root / agent.output_file).write_text(system.strip() + "\n", encoding="utf-8")
 
 
@@ -67,7 +67,7 @@ def run_agent(repo_root: Path, agent_name: str, prompt: str, headless: bool) -> 
     try:
         agent = get_agent(agent_name)
     except KeyError as e:
-        raise CliError(str(e), hint=f"valid agents: {', '.join(AGENTS.keys())}")
+        raise CliError(str(e), hint=f"valid agents: {', '.join(get_agents().keys())}")
     try:
         return agent.run(repo_root, prompt, headless)
     except FileNotFoundError:
@@ -187,7 +187,7 @@ def main() -> None:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    agent_choices = list(AGENTS.keys())
+    agent_choices = list(get_agents().keys())
 
     conjure = sub.add_parser(
         "conjure",

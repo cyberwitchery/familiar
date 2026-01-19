@@ -1,6 +1,6 @@
 [project]
 name = "familiar-cli"
-version = "0.0.5"
+version = "0.1.0"
 description = "compose and invoke ai agent prompts from reusable templates"
 readme = "readme.md"
 license = "MIT"
@@ -27,6 +27,10 @@ Repository = "https://github.com/cyberwitchery/familiar"
 
 [project.scripts]
 familiar = "familiar.cli:main"
+
+[project.entry-points."familiar.agents"]
+codex = "familiar.agents:CodexAgent"
+claude = "familiar.agents:ClaudeAgent"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

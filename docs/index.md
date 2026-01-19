@@ -9,7 +9,7 @@ familiar helps you build consistent, reusable prompts for ai coding agents like 
 - **conjurings** - reusable system instructions (rust, python, infra, security, etc.)
 - **invocations** - task templates with placeholder substitution
 - **local overrides** - customize built-ins per repository
-- **agent support** - works with codex and claude cli
+- **agent support** - works with codex, claude, and plugin agents
 
 ## quick example
 
@@ -33,5 +33,6 @@ pip install familiar-cli
 - [conjurings](conjurings.md) - available conjurings and what they do
 - [invocations](invocations.md) - available task templates
 - [customization](customization.md) - add your own conjurings and invocations
+- [plugins](plugins.md) - create agent plugins
 - [cli reference](cli.md) - all commands and options
 - [linting](linting.md) - validation rules and recommended structure

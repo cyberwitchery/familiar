@@ -1,5 +1,15 @@
 # changelog
 
+## 0.1.0
+
+- **plugin architecture**: extensible via Python entry points
+  - agent plugins: add new agents without modifying familiar core
+  - linter plugins: add custom lint rules for templates and invocations
+  - built-in agents (codex, claude) migrated to the plugin system
+  - graceful error handling for plugin load failures
+- added `py.typed` marker for PEP 561 compatibility
+- see [plugin docs](https://familiar.readthedocs.io/en/latest/plugins/) for details
+
 ## 0.0.5
 
 - rewrote all conjurings and invocations for better LLM prompting

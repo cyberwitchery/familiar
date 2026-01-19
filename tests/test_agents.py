@@ -5,24 +5,46 @@ from __future__ import annotations
 import pytest
 from unittest.mock import patch, MagicMock
 
+import familiar.agents as agents_module
 from familiar.agents import (
+    Agent,
     CodexAgent,
     ClaudeAgent,
-    AGENTS,
+    load_agents,
+    get_agents,
     get_agent,
 )
 
 
+@pytest.fixture(autouse=True)
+def reset_agents_cache():
+    """Reset the agents cache before each test."""
+    agents_module._agents_cache = None
+    yield
+    agents_module._agents_cache = None
+
+
 class TestAgentRegistry:
-    """tests for agent registry."""
+    """tests for agent registry via entry points."""
 
-    def test_agents_dict_has_codex(self):
-        assert "codex" in AGENTS
-        assert isinstance(AGENTS["codex"], CodexAgent)
+    def test_load_agents_returns_dict(self):
+        agents = load_agents()
+        assert isinstance(agents, dict)
 
-    def test_agents_dict_has_claude(self):
-        assert "claude" in AGENTS
-        assert isinstance(AGENTS["claude"], ClaudeAgent)
+    def test_load_agents_includes_codex(self):
+        agents = load_agents()
+        assert "codex" in agents
+        assert isinstance(agents["codex"], CodexAgent)
+
+    def test_load_agents_includes_claude(self):
+        agents = load_agents()
+        assert "claude" in agents
+        assert isinstance(agents["claude"], ClaudeAgent)
+
+    def test_get_agents_returns_cached(self):
+        agents1 = get_agents()
+        agents2 = get_agents()
+        assert agents1 is agents2
 
     def test_get_agent_returns_codex(self):
         agent = get_agent("codex")
@@ -35,6 +57,54 @@ class TestAgentRegistry:
     def test_get_agent_unknown_raises(self):
         with pytest.raises(KeyError, match="unknown agent"):
             get_agent("nonexistent")
+
+
+class TestPluginLoadErrors:
+    """tests for graceful handling of plugin load failures."""
+
+    def test_invalid_class_warns(self):
+        """Plugin that doesn't subclass Agent should warn."""
+        mock_ep = MagicMock()
+        mock_ep.name = "invalid"
+        mock_ep.load.return_value = str  # not an Agent subclass
+
+        with patch("familiar.agents.entry_points", return_value=[mock_ep]):
+            with pytest.warns(UserWarning, match="not a valid Agent subclass"):
+                agents = load_agents()
+            assert "invalid" not in agents
+
+    def test_load_error_warns(self):
+        """Plugin that fails to load should warn."""
+        mock_ep = MagicMock()
+        mock_ep.name = "broken"
+        mock_ep.load.side_effect = ImportError("module not found")
+
+        with patch("familiar.agents.entry_points", return_value=[mock_ep]):
+            with pytest.warns(UserWarning, match="failed to load"):
+                agents = load_agents()
+            assert "broken" not in agents
+
+    def test_instantiation_error_warns(self):
+        """Plugin whose constructor fails should warn."""
+
+        class BadAgent(Agent):
+            name = "bad"
+            output_file = "BAD.md"
+
+            def __init__(self):
+                raise RuntimeError("constructor failed")
+
+            def run(self, repo_root, prompt, headless):
+                pass
+
+        mock_ep = MagicMock()
+        mock_ep.name = "bad"
+        mock_ep.load.return_value = BadAgent
+
+        with patch("familiar.agents.entry_points", return_value=[mock_ep]):
+            with pytest.warns(UserWarning, match="failed to load"):
+                agents = load_agents()
+            assert "bad" not in agents
 
 
 class TestCodexAgent:

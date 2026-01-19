@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import re
+import warnings
 from dataclasses import dataclass
+from importlib.metadata import entry_points
 from pathlib import Path
-from typing import Literal
+from typing import Callable, Literal
 
 from .render import list_items, load_text
 
@@ -179,12 +181,54 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
     return messages
 
 
+# Type alias for linter functions
+LinterFunc = Callable[[str, str], list[LintMessage]]
+
+
+def load_linters(kind: Literal["templates", "invocations"]) -> list[LinterFunc]:
+    """Load linter plugins for the given kind.
+
+    Args:
+        kind: Either "templates" or "invocations".
+
+    Returns:
+        List of linter functions from plugins.
+    """
+    linters: list[LinterFunc] = []
+    group = f"familiar.linters.{kind}"
+    eps = entry_points(group=group)
+
+    for ep in eps:
+        try:
+            func = ep.load()
+            if not callable(func):
+                warnings.warn(
+                    f"linter plugin '{ep.name}': not callable",
+                    stacklevel=2,
+                )
+                continue
+            linters.append(func)
+        except Exception as e:
+            warnings.warn(
+                f"failed to load linter plugin '{ep.name}': {e}",
+                stacklevel=2,
+            )
+
+    return linters
+
+
 def lint_all(repo_root: Path) -> list[LintMessage]:
     """Lint all templates and invocations.
+
+    Runs built-in linters and any plugin linters registered via entry points.
 
     Returns a list of lint messages (errors and warnings).
     """
     messages: list[LintMessage] = []
+
+    # Load plugin linters
+    template_linters = load_linters("templates")
+    invocation_linters = load_linters("invocations")
 
     # Lint templates
     for name, _, is_local in list_items(repo_root, "templates"):
@@ -195,7 +239,21 @@ def lint_all(repo_root: Path) -> list[LintMessage]:
                 if is_local
                 else f"(builtin) templates/{name}.md"
             )
+            # Built-in linter
             messages.extend(lint_template(content, prefix))
+            # Plugin linters
+            for linter in template_linters:
+                try:
+                    messages.extend(linter(content, prefix))
+                except Exception as e:
+                    messages.append(
+                        LintMessage(
+                            level="error",
+                            file=prefix,
+                            line=None,
+                            message=f"plugin linter failed: {e}",
+                        )
+                    )
         except Exception as e:
             messages.append(
                 LintMessage(
@@ -215,7 +273,21 @@ def lint_all(repo_root: Path) -> list[LintMessage]:
                 if is_local
                 else f"(builtin) invocations/{name}.md"
             )
+            # Built-in linter
             messages.extend(lint_invocation(content, prefix))
+            # Plugin linters
+            for linter in invocation_linters:
+                try:
+                    messages.extend(linter(content, prefix))
+                except Exception as e:
+                    messages.append(
+                        LintMessage(
+                            level="error",
+                            file=prefix,
+                            line=None,
+                            message=f"plugin linter failed: {e}",
+                        )
+                    )
         except Exception as e:
             messages.append(
                 LintMessage(

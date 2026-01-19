@@ -64,6 +64,17 @@ add your own templates and invocations by creating files in `.familiar/` in your
 
 local files take precedence over built-ins.
 
+## plugins
+
+add new agents via plugins:
+
+```bash
+pip install familiar-gemini
+familiar invoke gemini bootstrap-python myapp cli
+```
+
+see the [plugin docs](https://familiar.readthedocs.io/en/latest/plugins/) for creating your own.
+
 ### placeholders
 
 invocations support placeholders:

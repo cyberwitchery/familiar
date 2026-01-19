@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch, MagicMock
+
+import pytest
+
 from familiar.lint import (
     lint_template,
     lint_invocation,
     lint_all,
+    load_linters,
     LintMessage,
 )
 
@@ -200,3 +205,96 @@ class TestLintMessage:
     def test_str_without_line(self):
         msg = LintMessage(level="warning", file="test.md", line=None, message="warning")
         assert str(msg) == "warning: test.md: warning"
+
+
+class TestLinterPlugins:
+    """tests for linter plugin loading."""
+
+    def test_load_linters_returns_list(self):
+        linters = load_linters("templates")
+        assert isinstance(linters, list)
+
+    def test_load_linters_invocations(self):
+        linters = load_linters("invocations")
+        assert isinstance(linters, list)
+
+    def test_invalid_linter_warns(self):
+        """Plugin that isn't callable should warn."""
+        mock_ep = MagicMock()
+        mock_ep.name = "invalid"
+        mock_ep.load.return_value = "not a function"
+
+        with patch("familiar.lint.entry_points", return_value=[mock_ep]):
+            with pytest.warns(UserWarning, match="not callable"):
+                linters = load_linters("templates")
+            assert len(linters) == 0
+
+    def test_load_error_warns(self):
+        """Plugin that fails to load should warn."""
+        mock_ep = MagicMock()
+        mock_ep.name = "broken"
+        mock_ep.load.side_effect = ImportError("module not found")
+
+        with patch("familiar.lint.entry_points", return_value=[mock_ep]):
+            with pytest.warns(UserWarning, match="failed to load"):
+                linters = load_linters("templates")
+            assert len(linters) == 0
+
+    def test_plugin_linter_called(self, tmp_path):
+        """Plugin linter should be called for each file."""
+        calls = []
+
+        def mock_linter(content: str, name: str) -> list[LintMessage]:
+            calls.append((content, name))
+            return []
+
+        mock_ep = MagicMock()
+        mock_ep.name = "test"
+        mock_ep.load.return_value = mock_linter
+
+        # Create a local template to lint
+        templates = tmp_path / ".familiar" / "templates"
+        templates.mkdir(parents=True)
+        (templates / "mytemplate.md").write_text("# test")
+
+        with patch("familiar.lint.entry_points") as mock_entry_points:
+            # Return our mock for templates, empty for invocations
+            def ep_side_effect(group):
+                if group == "familiar.linters.templates":
+                    return [mock_ep]
+                return []
+
+            mock_entry_points.side_effect = ep_side_effect
+            lint_all(tmp_path)
+
+        # Should have been called for the local template
+        local_calls = [c for c in calls if "mytemplate" in c[1]]
+        assert len(local_calls) == 1
+
+    def test_plugin_linter_error_handled(self, tmp_path):
+        """Plugin linter that raises should produce error message."""
+
+        def bad_linter(content: str, name: str) -> list[LintMessage]:
+            raise RuntimeError("linter crashed")
+
+        mock_ep = MagicMock()
+        mock_ep.name = "bad"
+        mock_ep.load.return_value = bad_linter
+
+        # Create a local template
+        templates = tmp_path / ".familiar" / "templates"
+        templates.mkdir(parents=True)
+        (templates / "test.md").write_text("# test")
+
+        with patch("familiar.lint.entry_points") as mock_entry_points:
+
+            def ep_side_effect(group):
+                if group == "familiar.linters.templates":
+                    return [mock_ep]
+                return []
+
+            mock_entry_points.side_effect = ep_side_effect
+            messages = lint_all(tmp_path)
+
+        error_messages = [m for m in messages if "plugin linter failed" in m.message]
+        assert len(error_messages) >= 1
