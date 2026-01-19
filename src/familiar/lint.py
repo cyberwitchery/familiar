@@ -36,12 +36,12 @@ _TASK_LINE = re.compile(
     r"^(task|explain|review|analyze|check|audit|describe|create|generate|refactor|bootstrap|implement|add|fix)(\s|:)",
     re.IGNORECASE,
 )
-# Accept inputs, input, arguments as input sections
+# Accept inputs, input, arguments as input sections (with or without ## heading)
 _INPUTS_SECTION = re.compile(
-    r"^(inputs?|arguments?)(\s*\([^)]+\))?:?\s*$", re.IGNORECASE | re.MULTILINE
+    r"^(##\s+)?(inputs?|arguments?)(\s*\([^)]+\))?:?\s*$", re.IGNORECASE | re.MULTILINE
 )
 _OUTPUT_SECTION = re.compile(
-    r"^(output|deliverables?):?\s*$", re.IGNORECASE | re.MULTILINE
+    r"^(##\s+)?(output|deliverables?):?\s*$", re.IGNORECASE | re.MULTILINE
 )
 
 
@@ -160,9 +160,11 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
     for p in positional:
         if p == "ARGUMENTS":
             continue
-        # Look for patterns like "$1 name", "- $1", ": $1", or "$1 (" in the content
-        # These indicate the placeholder is documented alongside a description
-        pattern = rf"(\w+[:\s]+\${p}|\${p}\s+\w+|\${p}\s*\()"
+        # Look for patterns indicating the placeholder is documented:
+        #   - "name: $1" or "name $1" (description before)
+        #   - "$1 name" or "$1 `name`" (description after, plain or backtick-quoted)
+        #   - "$1 (" (placeholder with parenthetical like "required")
+        pattern = rf"(\w+[:\s]+\${p}|\${p}\s+[`\w]|\${p}\s*\()"
         if not re.search(pattern, content):
             messages.append(
                 LintMessage(

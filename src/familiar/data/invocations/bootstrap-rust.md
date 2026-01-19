@@ -1,28 +1,81 @@
-task: bootstrap a new rust crate.
+task: bootstrap a new rust crate with best practices.
 
-inputs (positional)
-- $1 crate_name (required)
-- $2 crate_type: bin|lib (required)
-- $3 msrv (optional; e.g. 1.78)
-- $4 license (optional; e.g. mit, apache-2.0)
+## inputs
 
-preconditions
-- if crate_name or crate_type is missing/invalid: ask and stop.
-- if target directory exists: ask whether to abort or integrate; do not overwrite by default.
+- $1 `crate_name` (required): name of the crate (e.g., `myapp`)
+- $2 `crate_type` (required): `bin` or `lib`
+- $3 `msrv` (optional): minimum supported rust version (e.g., `1.75`)
+- $4 `license` (optional): license identifier (e.g., `MIT`, `Apache-2.0`)
 
-steps
-- create crate: `cargo new <crate_name> --<crate_type>`.
-- ensure project builds.
-- add README.md with: one-line purpose + quickstart commands.
-- if msrv provided: encode it (ask preferred mechanism if unclear; do not invent).
-- add minimal test if none exists.
-- run fmt/clippy/test.
+## preconditions
 
-acceptance
-- `cargo fmt` succeeds.
-- `cargo clippy --all-targets --all-features -- -D warnings` succeeds.
-- `cargo test --all-features` succeeds.
+STOP and ask if:
+- crate_name is missing or invalid (not a valid rust identifier)
+- crate_type is not `bin` or `lib`
+- the target directory already exists (ask: abort, overwrite, or integrate?)
 
-output
-- unified diff only for files changed/created.
-- verification commands (exact).
+## what gets created
+
+```
+<crate_name>/
+├── Cargo.toml          # with metadata, msrv, license if provided
+├── README.md           # one-line description + quickstart
+├── src/
+│   ├── main.rs         # (bin) minimal main with error handling
+│   └── lib.rs          # (lib) minimal module with doc comment
+└── tests/              # (lib only) integration test placeholder
+    └── integration.rs
+```
+
+## steps
+
+1. **validate**: confirm inputs are valid and directory doesn't conflict.
+2. **create**: run `cargo new <crate_name> --<crate_type>`.
+3. **configure**: update Cargo.toml with metadata, msrv, and license.
+4. **readme**: create README.md with purpose and quickstart.
+5. **test**: add a minimal test if not present.
+6. **verify**: run format, clippy, and tests.
+
+## cargo.toml structure
+
+```toml
+[package]
+name = "<crate_name>"
+version = "0.1.0"
+edition = "2021"
+rust-version = "<msrv>"  # if provided
+license = "<license>"    # if provided
+description = "TODO: add description"
+
+[dependencies]
+
+[dev-dependencies]
+```
+
+## acceptance criteria
+
+all must pass:
+```
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all-features
+```
+
+## output
+
+```
+## crate created
+<crate_name> (<crate_type>)
+
+## files
+<list of files created with brief description>
+
+## changes
+<diff of all created/modified files>
+
+## verification
+cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features
+
+## next steps
+<suggested next actions: add dependencies, implement features, etc.>
+```

@@ -1,5 +1,13 @@
 # changelog
 
+## 0.0.5
+
+- rewrote all conjurings and invocations for better LLM prompting
+  - added explicit role framing and prioritized constraints
+  - standardized STOP conditions and output formats
+  - added checklists and structured workflows
+- linter now recognizes markdown heading format (`## inputs`)
+
 ## 0.0.4
 
 - `lint` command to validate templates and invocations

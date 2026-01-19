@@ -1,28 +1,99 @@
-task: security review.
+task: perform a security-focused code review.
 
-inputs
-- $ARGUMENTS (optional): scope. if empty, infer from current diff/repo context.
+## inputs
 
-preconditions
-- if scope is unclear and no obvious target exists: ask what to review; stop.
+- $ARGUMENTS (optional): file path, function, feature, or scope to review. if empty, review recent changes or the most security-sensitive areas.
 
-steps
-- identify trust boundaries and attacker-controlled inputs.
-- confirm authn/authz expectations.
-- check for:
-  - injection (sql, shell, template, path)
-  - unsafe deserialization / parsing
-  - secrets handling
-  - permissions / privilege escalation
-  - insecure defaults
-- produce a ranked list of issues.
+## preconditions
 
-deliverables
-- findings ranked by severity (high/med/low) with concrete mitigations.
-- for each high item: smallest patch suggestion.
-- verification steps for each mitigation (tests/commands).
+STOP and ask if:
+- the scope is unclear and you cannot identify an obvious target
+- you need context about the threat model or trust boundaries
 
-output
-- findings (ranked bullets).
-- recommended changes (diff only if requested).
-- verification commands/tests.
+before starting, identify:
+- what user input or external data enters the system
+- what sensitive data or operations are involved
+- who the potential attackers are and what they might want
+
+## vulnerability checklist
+
+systematically check for:
+
+**injection**
+- SQL injection (string concatenation in queries)
+- command injection (shell commands with user input)
+- path traversal (user input in file paths)
+- template injection (user input rendered in templates)
+- LDAP/XML injection where applicable
+
+**authentication & authorization**
+- missing or bypassable auth checks
+- broken session management
+- insecure password handling
+- missing or weak MFA
+- privilege escalation paths
+
+**data exposure**
+- secrets in logs, errors, or responses
+- sensitive data transmitted unencrypted
+- overly verbose error messages
+- PII handling violations
+
+**insecure configuration**
+- debug modes enabled
+- permissive CORS policies
+- missing security headers
+- default credentials
+- unnecessary services exposed
+
+**other**
+- unsafe deserialization
+- race conditions in security checks
+- cryptographic weaknesses
+- missing rate limiting
+
+## severity definitions
+
+- **critical**: immediately exploitable, leads to full compromise, data breach, or RCE
+- **high**: exploitable with some effort, significant impact (auth bypass, significant data leak)
+- **medium**: requires specific conditions, moderate impact (information disclosure, DoS)
+- **low**: defense-in-depth issue, minimal direct impact
+
+## output
+
+```
+## scope
+<what was reviewed>
+
+## threat model
+<who might attack this, what they want, what data/operations are at risk>
+
+## findings
+
+### critical
+- [file:line] <vulnerability>
+  - impact: <what an attacker could do>
+  - exploit: <how it could be exploited>
+  - fix: <specific remediation>
+
+### high
+- [file:line] <vulnerability>
+  - impact: <impact>
+  - fix: <remediation>
+
+### medium
+- [file:line] <issue>
+  - fix: <remediation>
+
+### low
+- [file:line] <issue>
+
+## recommended fixes
+<diffs if implementation requested, otherwise skip>
+
+## verification
+<tests or commands to verify each fix>
+
+## areas not covered
+<what wasn't reviewed and why>
+```
