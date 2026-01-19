@@ -144,8 +144,9 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
     content_lower = content.lower()
     for placeholder in named:
         # Check if placeholder name appears somewhere (likely in inputs section)
+        # Remove the placeholder itself (lowercased to match content_lower) before checking
         if placeholder.lower() not in content_lower.replace(
-            f"{{{{{placeholder}}}}}", ""
+            f"{{{{{placeholder.lower()}}}}}", ""
         ):
             messages.append(
                 LintMessage(

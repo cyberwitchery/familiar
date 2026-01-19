@@ -30,6 +30,11 @@ class CliError(Exception):
 
 
 def find_repo_root(start: Path) -> Path:
+    """Find the repository root by looking for .git directory.
+
+    Walks up from start directory. Falls back to start directory itself
+    if no .git is found, allowing use outside of git repositories.
+    """
     cur = start.resolve()
     for p in [cur] + list(cur.parents):
         if (p / ".git").exists():
@@ -38,7 +43,10 @@ def find_repo_root(start: Path) -> Path:
 
 
 def write_instruction(repo_root: Path, agent_name: str, system: str) -> None:
-    agent = get_agent(agent_name)
+    try:
+        agent = get_agent(agent_name)
+    except KeyError as e:
+        raise CliError(str(e), hint=f"valid agents: {', '.join(AGENTS.keys())}")
     (repo_root / agent.output_file).write_text(system.strip() + "\n", encoding="utf-8")
 
 
@@ -56,7 +64,10 @@ def parse_kv(pairs: list[str]) -> dict[str, str]:
 
 
 def run_agent(repo_root: Path, agent_name: str, prompt: str, headless: bool) -> int:
-    agent = get_agent(agent_name)
+    try:
+        agent = get_agent(agent_name)
+    except KeyError as e:
+        raise CliError(str(e), hint=f"valid agents: {', '.join(AGENTS.keys())}")
     try:
         return agent.run(repo_root, prompt, headless)
     except FileNotFoundError:
@@ -93,13 +104,15 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     return run_agent(repo_root, args.agent, prompt, headless=args.headless)
 
 
-def _print_items(items: list[tuple[str, str, bool]], verbose: bool) -> None:
+def _print_items(
+    items: list[tuple[str, str, bool]], verbose: bool, indent: str = ""
+) -> None:
     for name, first_line, is_local in items:
         marker = " (local)" if is_local else ""
         if verbose:
-            print(f"  {name}{marker}: {first_line}")
+            print(f"{indent}{name}{marker}: {first_line}")
         else:
-            print(f"  {name}{marker}")
+            print(f"{indent}{name}{marker}")
 
 
 def cmd_list(args: argparse.Namespace) -> int:
@@ -110,25 +123,21 @@ def cmd_list(args: argparse.Namespace) -> int:
         conjurings = list_items(repo_root, "templates")
         invocations = list_items(repo_root, "invocations")
         print("conjurings:")
-        _print_items(conjurings, args.verbose)
+        _print_items(conjurings, args.verbose, indent="  ")
         print("\ninvocations:")
-        _print_items(invocations, args.verbose)
-        return 0
+        _print_items(invocations, args.verbose, indent="  ")
+        return EXIT_SUCCESS
 
-    # map CLI names to internal names
+    # map CLI names to internal names; "conjurings" is the user-facing term
+    # for what are stored internally as "templates"
     kind = "templates" if args.kind == "conjurings" else args.kind
     items = list_items(repo_root, kind)
 
     if not items:
-        print(f"no {kind} found")
+        print(f"no {args.kind} found")
         return EXIT_SUCCESS
 
-    for name, first_line, is_local in items:
-        marker = " (local)" if is_local else ""
-        if args.verbose:
-            print(f"{name}{marker}: {first_line}")
-        else:
-            print(f"{name}{marker}")
+    _print_items(items, args.verbose)
     return EXIT_SUCCESS
 
 

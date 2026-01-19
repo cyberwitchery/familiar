@@ -7,6 +7,9 @@
   - standardized STOP conditions and output formats
   - added checklists and structured workflows
 - linter now recognizes markdown heading format (`## inputs`)
+- fixed case-sensitivity bug in placeholder documentation check
+- improved error handling: `get_agent` now raises proper exceptions
+- code cleanup: consolidated duplicate printing logic in `list` command
 
 ## 0.0.4
 

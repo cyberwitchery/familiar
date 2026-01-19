@@ -33,7 +33,9 @@ def substitute(text: str, args: list[str], kv: dict[str, str]) -> str:
     """Substitute $1, $2, ... $ARGUMENTS and {{key}} placeholders.
 
     Note: positional args are substituted before kv args, so user-supplied
-    args containing {{foo}} could get expanded. This is low risk in practice.
+    args containing {{foo}} could get expanded. This is accepted because:
+    (1) args come from the same user invoking the CLI, and (2) output goes
+    to the AI agent, not executed directly. No security boundary is crossed.
     """
     missing: list[str] = []
 

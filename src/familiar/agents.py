@@ -37,6 +37,8 @@ class ClaudeAgent(Agent):
     output_file = "CLAUDE.md"
 
     def run(self, repo_root: Path, prompt: str, headless: bool) -> int:
+        # claude cli doesn't support a working directory flag like codex's -C;
+        # it uses cwd automatically, so repo_root is unused here
         if headless:
             cmd = ["claude", "-p", prompt]
         else:
@@ -51,7 +53,11 @@ AGENTS: dict[str, Agent] = {
 
 
 def get_agent(name: str) -> Agent:
-    """Get an agent by name."""
+    """Get an agent by name.
+
+    Raises:
+        KeyError: if the agent name is not recognized.
+    """
     if name not in AGENTS:
-        raise SystemExit(f"unknown agent: {name}")
+        raise KeyError(f"unknown agent: {name}")
     return AGENTS[name]
