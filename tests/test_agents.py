@@ -33,7 +33,7 @@ class TestAgentRegistry:
         assert isinstance(agent, ClaudeAgent)
 
     def test_get_agent_unknown_raises(self):
-        with pytest.raises(SystemExit, match="unknown agent"):
+        with pytest.raises(KeyError, match="unknown agent"):
             get_agent("nonexistent")
 
 
