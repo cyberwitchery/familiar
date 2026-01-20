@@ -1,5 +1,11 @@
 # changelog
 
+## 0.1.2
+
+- **new conjurings**: `frontend` (react), `docs` (documentation), `data` (data engineering)
+- **new invocations**: `add-ci` (github/gitlab workflows), `audit` (codebase audit), `performance` (profiling and optimization), `release` (version bump and changelog)
+- **documentation**: updated docs/conjurings.md and docs/invocations.md with new templates
+
 ## 0.1.1
 
 - **improved placeholder substitution**: now uses a single-pass regex to prevent unintentional secondary expansion of user-provided content
