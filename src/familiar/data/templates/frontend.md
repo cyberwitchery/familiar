@@ -29,7 +29,7 @@ do not:
 - use `any` in TypeScript
 - leave console.log in production code
 - ignore accessibility (alt text, labels, keyboard nav)
-- create components over ~100 lines
+- create components over ~100 lines without splitting them
 - use `useEffect` for derived state
 - fetch in useEffect without cleanup
 

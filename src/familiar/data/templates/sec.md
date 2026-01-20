@@ -13,7 +13,7 @@ for every piece of code, identify:
 ## vulnerability checklist
 
 actively look for:
-- **injection**: SQL, command, template, path traversal, LDAP, XML
+- **injection**: SQL, command, template, path traversal, LDAP, XML, SSRF
 - **broken auth**: weak passwords, missing MFA, session fixation, token leakage
 - **broken access control**: IDOR, privilege escalation, missing authz checks
 - **data exposure**: secrets in logs/errors, unencrypted sensitive data

@@ -4,7 +4,7 @@ task: bootstrap a new python project with modern tooling.
 
 - $1 `package_name` (required): name of the package (e.g., `myapp`)
 - $2 `package_type` (required): `cli` or `lib`
-- $3 `python_version` (optional): minimum python version (default: `3.10`)
+- $3 `python_version` (optional): minimum python version (default: `3.13`)
 - $4 `license` (optional): license identifier (e.g., `MIT`, `Apache-2.0`)
 
 ## preconditions
@@ -58,7 +58,7 @@ dev = ["ruff", "mypy", "pytest", "pytest-cov"]
 <package_name> = "<package_name>.main:main"
 
 [tool.ruff]
-target-version = "py<python_version_short>"
+target-version = "py313"  # derive from python_version: 3.13 → py313
 line-length = 88
 
 [tool.mypy]

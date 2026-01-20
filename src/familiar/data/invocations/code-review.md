@@ -19,6 +19,7 @@ examine the code for:
 - are edge cases handled?
 - are error conditions handled properly?
 - are there potential null/undefined issues?
+- are there hardcoded secrets or credentials?
 
 **clarity**
 - is the code easy to understand?

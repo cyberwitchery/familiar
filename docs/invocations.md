@@ -34,7 +34,7 @@ arguments:
 
 1. package name
 2. type: `cli` or `lib`
-3. python version (optional, default 3.9)
+3. python version (optional, default 3.13)
 4. license (optional)
 
 creates pyproject.toml, src layout, readme, ruff/mypy config, and minimal test.

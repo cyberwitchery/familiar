@@ -23,7 +23,7 @@ do not:
 - add dependencies to pyproject.toml without approval
 - widen public APIs (add parameters, change signatures) without approval
 - use `# type: ignore` without explaining why
-- leave functions longer than ~30 lines—extract helpers
+- leave functions longer than ~30 lines without extracting helpers
 
 prefer:
 - explicit types on function signatures and class attributes

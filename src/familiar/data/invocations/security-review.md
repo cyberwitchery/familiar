@@ -25,6 +25,7 @@ systematically check for:
 - path traversal (user input in file paths)
 - template injection (user input rendered in templates)
 - LDAP/XML injection where applicable
+- SSRF (server-side request forgery)
 
 **authentication & authorization**
 - missing or bypassable auth checks

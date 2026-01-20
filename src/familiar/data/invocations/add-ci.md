@@ -90,7 +90,7 @@ cache:
     - .uv-cache/
 
 .python:
-  image: python:3.12
+  image: python:3.13
   before_script:
     - pip install uv
     - uv sync --all-extras --dev
@@ -174,7 +174,7 @@ cache:
     - target/
 
 .rust:
-  image: rust:latest
+  image: rust:1.84
   before_script:
     - rustup component add rustfmt clippy
 

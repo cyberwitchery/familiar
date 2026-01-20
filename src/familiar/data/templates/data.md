@@ -18,14 +18,12 @@ NEVER:
 
 ## sql safety
 
-always parameterized:
 ```python
+# SAFE: parameterized query
 cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
-```
 
-never string concatenation:
-```python
-query = f"SELECT * FROM users WHERE id = {user_id}"  # SQL injection
+# DANGEROUS: string concatenation (SQL injection)
+query = f"SELECT * FROM users WHERE id = {user_id}"
 ```
 
 for transactional DBs (postgres, mysql), use transactions:
