@@ -106,6 +106,71 @@ familiar invoke codex security-review
 
 identifies trust boundaries, checks for injection risks and secret leakage, lists top risks with mitigations.
 
+## add-ci
+
+add CI workflow for a project.
+
+```bash
+familiar invoke codex add-ci github python
+familiar invoke codex add-ci gitlab rust
+familiar invoke codex add-ci github node
+```
+
+arguments:
+
+1. platform: `github` or `gitlab`
+2. language: `python`, `rust`, or `node`
+
+creates complete workflow file with lint, typecheck, and test steps.
+
+## audit
+
+comprehensive codebase audit for newcomers.
+
+```bash
+familiar invoke codex audit
+familiar invoke codex audit security
+```
+
+arguments:
+
+1. focus (optional): `architecture`, `security`, `dependencies`, `testing`
+
+examines architecture, dependencies, security surface, technical debt. produces detailed report with recommendations.
+
+## performance
+
+identify and fix performance issues.
+
+```bash
+familiar invoke codex performance "the search endpoint"
+familiar invoke codex performance src/parser.py memory
+```
+
+arguments:
+
+1. target: file, function, or scope to analyze
+2. metric (optional): `time`, `memory`, `cpu`, `io`
+
+profiles first, measures baseline, proposes optimizations with tradeoffs, verifies improvement.
+
+## release
+
+prepare a release.
+
+```bash
+familiar invoke codex release 1.2.0
+familiar invoke codex release minor "Added new API endpoints"
+familiar invoke codex release 2.0.0-rc.1
+```
+
+arguments:
+
+1. version: number (`1.2.0`), bump type (`major`, `minor`, `patch`), or pre-release (`1.0.0-alpha.1`)
+2. description (optional): summary for changelog
+
+updates version files, changelog, provides commit/tag/publish commands.
+
 ## placeholders
 
 invocations support these placeholders:

@@ -59,6 +59,49 @@ infrastructure/devops guidelines:
 - pin versions (providers, modules, images)
 - include verification commands (terraform, kubectl, helm)
 
+## frontend
+
+react frontend guidelines:
+
+**default commands:**
+
+- lint: `npm run lint`
+- typecheck: `npm run typecheck`
+- test: `npm test`
+
+**rules:**
+
+- no `any` in TypeScript
+- no console.log in production
+- accessibility required (labels, keyboard nav, focus states)
+- keep components under ~100 lines
+- use React Testing Library, test behavior not implementation
+
+## docs
+
+documentation guidelines:
+
+- know your audience before writing
+- active voice, concrete examples, front-load important info
+- structure: README (quick start), tutorials (teach by building), how-to (goal-oriented), reference (scannable)
+- every code example must be correct, minimal, and self-contained
+
+## data
+
+data engineering guidelines:
+
+**critical rules:**
+
+- always use parameterized queries (never string concatenation)
+- no unreviewed SQL against production
+- no DELETE/UPDATE/TRUNCATE on production without explicit approval
+
+**patterns:**
+
+- transactional DBs: use transactions, verify before COMMIT
+- analytical DBs: prefer immutable patterns (new partitions, not updates)
+- pipelines: idempotent, atomic, validated
+
 ## sec
 
 security-focused guidelines:
