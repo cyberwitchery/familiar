@@ -39,8 +39,14 @@ familiar conjure codex rust infra sec
 
 invoke an action prompt:
 
-```
+```bash
 familiar invoke codex bootstrap-rust myapp lib 1.78 mit
+```
+
+run in a separate git worktree to avoid interfering with local changes:
+
+```bash
+familiar invoke --worktree codex bootstrap-rust myapp lib
 ```
 
 list available conjurings and invocations:

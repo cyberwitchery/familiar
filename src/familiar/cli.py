@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import traceback
 from pathlib import Path
 
@@ -40,6 +43,37 @@ def find_repo_root(start: Path) -> Path:
         if (p / ".git").exists():
             return p
     return cur
+
+
+def create_worktree(repo_root: Path) -> Path:
+    """Create a temporary git worktree for the repository."""
+    # Ensure it's a git repo
+    try:
+        subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--is-inside-work-tree"],
+            check=True,
+            capture_output=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        raise CliError(
+            "not a git repository", hint="--worktree requires a git repository"
+        )
+
+    tmpdir = tempfile.mkdtemp(prefix="familiar-")
+    # git worktree add requires the directory to NOT exist.
+    # mkdtemp creates it. Let's remove it and let git create it.
+    os.rmdir(tmpdir)
+
+    try:
+        subprocess.run(
+            ["git", "-C", str(repo_root), "worktree", "add", "--detach", tmpdir, "HEAD"],
+            check=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError as e:
+        raise CliError(f"failed to create git worktree: {e.stderr.decode().strip()}")
+
+    return Path(tmpdir)
 
 
 def write_instruction(repo_root: Path, agent_name: str, system: str) -> None:
@@ -101,7 +135,31 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             str(e),
             hint="run 'familiar list invocations' to see available options",
         )
-    return run_agent(repo_root, args.agent, prompt, headless=args.headless)
+
+    target_dir = repo_root
+    if args.worktree:
+        target_dir = create_worktree(repo_root)
+        print(f"created worktree at {target_dir}")
+
+        # Copy instruction file if it exists in the original repo
+        try:
+            agent = get_agent(args.agent)
+            instr_file = repo_root / agent.output_file
+            if instr_file.exists():
+                shutil.copy2(instr_file, target_dir / agent.output_file)
+        except Exception:
+            pass
+
+    try:
+        rc = run_agent(target_dir, args.agent, prompt, headless=args.headless)
+        if args.worktree:
+            print(f"\nworktree remains at: {target_dir}")
+            print(f"to remove it: git worktree remove {target_dir}")
+        return rc
+    except Exception:
+        if args.worktree:
+            print(f"\nworktree remains at: {target_dir}")
+        raise
 
 
 def _print_items(
@@ -213,6 +271,9 @@ def main() -> None:
     invoke.add_argument("--into", help="target repo path (default: current directory)")
     invoke.add_argument(
         "--headless", action="store_true", help="run without interactive UI"
+    )
+    invoke.add_argument(
+        "--worktree", action="store_true", help="run in a separate git worktree"
     )
     invoke.add_argument("--kv", nargs="*", help="named arguments as key=value pairs")
     invoke.add_argument(

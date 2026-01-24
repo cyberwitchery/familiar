@@ -58,11 +58,16 @@ familiar invoke <agent> <invocation> [--into <path>] [--headless] [--kv <key=val
 |--------|-------------|
 | `--into` | target repository path (default: current directory) |
 | `--headless` | run without interactive ui |
+| `--worktree` | run in a separate git worktree to avoid interfering with local changes |
 | `--kv` | named arguments as `key=value` pairs |
 
 **behavior:**
 
 - renders invocation with provided arguments
+- if `--worktree` is specified:
+    - creates a temporary git worktree from `HEAD`
+    - copies the agent instruction file (`CLAUDE.md` or `AGENTS.md`) to the worktree
+    - runs the agent in the worktree directory
 - runs the agent with the prompt
 
 **examples:**

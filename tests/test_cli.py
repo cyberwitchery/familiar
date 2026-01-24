@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import pytest
+import subprocess
 from unittest.mock import patch
 import argparse
 
 from familiar.cli import (
     find_repo_root,
+    create_worktree,
     write_instruction,
     parse_kv,
     run_agent,
@@ -17,6 +19,38 @@ from familiar.cli import (
     cmd_lint,
     CliError,
 )
+
+
+class TestCreateWorktree:
+    """tests for git worktree creation."""
+
+    def test_create_worktree_success(self, tmp_path):
+        with patch("subprocess.run") as mock_run:
+            # mock_run needs to be called twice: once for rev-parse, once for worktree add
+            mock_run.return_value = argparse.Namespace(returncode=0)
+            
+            # We need to mock os.rmdir because the tmpdir won't actually exist
+            with patch("os.rmdir"):
+                result = create_worktree(tmp_path)
+                assert "familiar-" in str(result)
+                assert mock_run.call_count == 2
+
+    def test_create_worktree_not_git_raises(self, tmp_path):
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            with pytest.raises(CliError, match="not a git repository"):
+                create_worktree(tmp_path)
+
+    def test_create_worktree_fail_raises(self, tmp_path):
+        with patch("subprocess.run") as mock_run:
+            # First call (rev-parse) succeeds
+            # Second call (worktree add) fails
+            mock_run.side_effect = [
+                argparse.Namespace(returncode=0),
+                subprocess.CalledProcessError(1, "git", stderr=b"already exists")
+            ]
+            with patch("os.rmdir"):
+                with pytest.raises(CliError, match="failed to create git worktree"):
+                    create_worktree(tmp_path)
 
 
 class TestFindRepoRoot:
@@ -127,6 +161,7 @@ class TestCmdInvoke:
                 headless=True,
                 kv=None,
                 inv_args=["some code"],
+                worktree=False,
             )
             result = cmd_invoke(args)
             assert result == 0
@@ -143,6 +178,7 @@ class TestCmdInvoke:
             headless=True,
             kv=None,
             inv_args=[],
+            worktree=False,
         )
         with pytest.raises(CliError, match="unknown invocation"):
             cmd_invoke(args)
@@ -161,10 +197,35 @@ class TestCmdInvoke:
                 headless=True,
                 kv=["mykey=myvalue"],
                 inv_args=[],
+                worktree=False,
             )
             cmd_invoke(args)
             prompt = mock_run.call_args[0][2]
             assert "value is myvalue" in prompt
+
+    def test_invoke_with_worktree(self, tmp_path):
+        with patch("familiar.cli.create_worktree", return_value=tmp_path / "wt") as mock_wt:
+            with patch("familiar.cli.run_agent", return_value=0) as mock_run:
+                with patch("shutil.copy2") as mock_copy:
+                    # Create instruction file to be copied
+                    (tmp_path / "CLAUDE.md").write_text("instr")
+                    
+                    args = argparse.Namespace(
+                        agent="claude",
+                        invocation="explain",
+                        into=str(tmp_path),
+                        headless=True,
+                        kv=None,
+                        inv_args=[],
+                        worktree=True,
+                    )
+                    result = cmd_invoke(args)
+                    assert result == 0
+                    mock_wt.assert_called_once()
+                    # Check that run_agent was called with the worktree path
+                    assert mock_run.call_args[0][0] == tmp_path / "wt"
+                    # Check that instruction file was copied
+                    mock_copy.assert_called_once()
 
 
 class TestCmdList:
