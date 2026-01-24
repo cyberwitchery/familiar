@@ -1,5 +1,11 @@
 # changelog
 
+## 0.2.0
+
+- **git worktrees**: added `--worktree` flag to `invoke` command. This allows running agents in a separate, isolated git worktree to avoid interference with local changes.
+- **enhanced testing**: improved test coverage for CLI and worktree management.
+- **documentation**: added worktree usage details to README and CLI reference.
+
 ## 0.1.2
 
 - **new conjurings**: `frontend` (react), `docs` (documentation), `data` (data engineering)
