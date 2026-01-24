@@ -28,7 +28,7 @@ class TestCreateWorktree:
         with patch("subprocess.run") as mock_run:
             # mock_run needs to be called twice: once for rev-parse, once for worktree add
             mock_run.return_value = argparse.Namespace(returncode=0)
-            
+
             # We need to mock os.rmdir because the tmpdir won't actually exist
             with patch("os.rmdir"):
                 result = create_worktree(tmp_path)
@@ -46,7 +46,7 @@ class TestCreateWorktree:
             # Second call (worktree add) fails
             mock_run.side_effect = [
                 argparse.Namespace(returncode=0),
-                subprocess.CalledProcessError(1, "git", stderr=b"already exists")
+                subprocess.CalledProcessError(1, "git", stderr=b"already exists"),
             ]
             with patch("os.rmdir"):
                 with pytest.raises(CliError, match="failed to create git worktree"):
@@ -204,12 +204,14 @@ class TestCmdInvoke:
             assert "value is myvalue" in prompt
 
     def test_invoke_with_worktree(self, tmp_path):
-        with patch("familiar.cli.create_worktree", return_value=tmp_path / "wt") as mock_wt:
+        with patch(
+            "familiar.cli.create_worktree", return_value=tmp_path / "wt"
+        ) as mock_wt:
             with patch("familiar.cli.run_agent", return_value=0) as mock_run:
                 with patch("shutil.copy2") as mock_copy:
                     # Create instruction file to be copied
                     (tmp_path / "CLAUDE.md").write_text("instr")
-                    
+
                     args = argparse.Namespace(
                         agent="claude",
                         invocation="explain",
