@@ -43,30 +43,7 @@ STOP and ask if:
 ## pyproject.toml structure
 
 ```toml
-[project]
-name = "<package_name>"
-version = "0.1.0"
-description = "TODO: add description"
-requires-python = ">=<python_version>"
-license = "<license>"  # if provided
-dependencies = []
-
-[project.optional-dependencies]
-dev = ["ruff", "mypy", "pytest", "pytest-cov"]
-
-[project.scripts]  # cli only
-<package_name> = "<package_name>.main:main"
-
-[tool.ruff]
-target-version = "py313"  # derive from python_version: 3.13 → py313
-line-length = 88
-
-[tool.mypy]
-python_version = "<python_version>"
-strict = true
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
+{{> snippet:python/pyproject.toml}}
 ```
 
 ## acceptance criteria

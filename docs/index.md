@@ -33,7 +33,8 @@ pip install familiar-cli
 - [getting started](getting-started.md) - first-time setup
 - [conjurings](conjurings.md) - available conjurings and what they do
 - [invocations](invocations.md) - available invocations
-- [customization](customization.md) - add your own conjurings and invocations
+- [snippets](snippets.md) - reusable file templates for invocations
+- [customization](customization.md) - add your own conjurings, invocations, and snippets
 - [plugins](plugins.md) - create agent plugins
 - [cli reference](cli.md) - all commands and options
 - [linting](linting.md) - validation rules and recommended structure

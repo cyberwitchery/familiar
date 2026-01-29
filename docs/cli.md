@@ -58,6 +58,7 @@ familiar invoke <agent> <invocation> [--into <path>] [--headless] [--kv <key=val
 |--------|-------------|
 | `--into` | target repository path (default: current directory) |
 | `--headless` | run without interactive ui |
+| `--dry-run` | print rendered prompt and exit (does not run the agent) |
 | `--worktree` | run in a separate git worktree to avoid interfering with local changes |
 | `--kv` | named arguments as `key=value` pairs |
 
@@ -81,11 +82,14 @@ familiar invoke codex add-tests "parse_config" --headless
 
 # with named arguments
 familiar invoke codex implement-feature --kv spec="add caching"
+
+# preview rendered prompt without running the agent
+familiar invoke codex bootstrap-python myapp cli --dry-run
 ```
 
 ## familiar list
 
-list available conjurings and invocations.
+list available conjurings, invocations, and snippets.
 
 ```
 familiar list [kind] [--into <path>] [-v|--verbose]
@@ -95,7 +99,7 @@ familiar list [kind] [--into <path>] [-v|--verbose]
 
 | argument | description |
 |----------|-------------|
-| `kind` | what to list: `conjurings` or `invocations` (default: both) |
+| `kind` | what to list: `conjurings`, `invocations`, or `snippets` (default: all) |
 
 **options:**
 
@@ -121,6 +125,9 @@ familiar list conjurings
 
 # list invocations with descriptions
 familiar list invocations -v
+
+# list available snippets
+familiar list snippets
 
 # list in specific repo
 familiar list --into /path/to/repo

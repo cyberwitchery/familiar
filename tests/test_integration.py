@@ -182,7 +182,7 @@ class TestHelpIntegration:
 class TestListIntegration:
     """integration tests for list command."""
 
-    def test_list_both(self):
+    def test_list_all(self):
         result = subprocess.run(
             [sys.executable, "-m", "familiar.cli", "list"],
             capture_output=True,
@@ -191,6 +191,7 @@ class TestListIntegration:
         assert result.returncode == 0
         assert "conjurings:" in result.stdout
         assert "invocations:" in result.stdout
+        assert "snippets:" in result.stdout
         assert "core" in result.stdout
         assert "explain" in result.stdout
 
@@ -245,6 +246,50 @@ class TestListIntegration:
         )
         assert result.returncode == 0
         assert "custom (local)" in result.stdout
+
+    def test_list_snippets(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "familiar.cli", "list", "snippets"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert "python/pyproject.toml" in result.stdout
+        assert "rust/Cargo.toml" in result.stdout
+        assert "node/github-ci.yml" in result.stdout
+
+
+class TestSnippetIntegration:
+    """integration tests for snippet includes."""
+
+    def test_invocation_with_snippet_renders(self, tmp_path):
+        """Invocations using snippet includes should render with inlined content."""
+        from familiar.render import render_invocation
+
+        result = render_invocation(tmp_path, "bootstrap-python", ["myapp", "cli"], {})
+        # The snippet content should be inlined
+        assert "[project]" in result
+        assert "pyproject.toml" not in result or "snippet:" not in result
+
+    def test_add_ci_snippets_render(self, tmp_path):
+        """add-ci invocation should render with CI workflow content."""
+        from familiar.render import render_invocation
+
+        result = render_invocation(tmp_path, "add-ci", ["github", "python"], {})
+        # Should contain inlined workflow, not the snippet directive
+        assert "{{> snippet:" not in result
+        assert "actions/checkout" in result
+
+    def test_snippet_override_changes_output(self, tmp_path):
+        """Local snippet override should change rendered invocation."""
+        from familiar.render import render_invocation
+
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "python"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "pyproject.toml").write_text("[custom]\noverride = true\n")
+
+        result = render_invocation(tmp_path, "bootstrap-python", ["myapp", "cli"], {})
+        assert "override = true" in result
 
 
 class TestLintIntegration:

@@ -9,7 +9,7 @@ from importlib.metadata import entry_points
 from pathlib import Path
 from typing import Callable, Literal
 
-from .render import list_items, load_text
+from .render import _SNIPPET_INCLUDE, NotFoundError, list_items, load_snippet, load_text
 
 
 @dataclass
@@ -225,6 +225,28 @@ def load_linters(kind: Literal["conjurings", "invocations"]) -> list[LinterFunc]
     return linters
 
 
+def lint_snippet_references(
+    repo_root: Path, content: str, name: str
+) -> list[LintMessage]:
+    """Check that all snippet includes reference existing snippets."""
+    messages: list[LintMessage] = []
+    for i, line in enumerate(content.split("\n"), 1):
+        for m in _SNIPPET_INCLUDE.finditer(line):
+            snippet_path = m.group(1).strip()
+            try:
+                load_snippet(repo_root, snippet_path)
+            except NotFoundError:
+                messages.append(
+                    LintMessage(
+                        level="error",
+                        file=name,
+                        line=i,
+                        message=f"snippet not found: {snippet_path}",
+                    )
+                )
+    return messages
+
+
 def lint_collection(
     repo_root: Path,
     kind: Literal["conjurings", "invocations"],
@@ -243,6 +265,8 @@ def lint_collection(
             )
             # Built-in linter
             messages.extend(builtin_linter(content, prefix))
+            # Snippet reference validation
+            messages.extend(lint_snippet_references(repo_root, content, prefix))
             # Plugin linters
             for linter in plugin_linters:
                 try:

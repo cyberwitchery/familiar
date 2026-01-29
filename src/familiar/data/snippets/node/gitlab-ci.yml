@@ -1,0 +1,30 @@
+stages:
+  - check
+  - test
+
+cache:
+  paths:
+    - node_modules/
+
+.node:
+  image: node:20
+  before_script:
+    - npm ci
+
+lint:
+  extends: .node
+  stage: check
+  script:
+    - npm run lint
+
+typecheck:
+  extends: .node
+  stage: check
+  script:
+    - npm run typecheck
+
+test:
+  extends: .node
+  stage: test
+  script:
+    - npm test

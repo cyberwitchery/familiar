@@ -7,11 +7,12 @@ from unittest.mock import patch, MagicMock
 import pytest
 
 from familiar.lint import (
-    lint_template,
-    lint_invocation,
-    lint_all,
-    load_linters,
     LintMessage,
+    lint_all,
+    lint_invocation,
+    lint_snippet_references,
+    lint_template,
+    load_linters,
 )
 
 
@@ -298,3 +299,56 @@ class TestLinterPlugins:
 
         error_messages = [m for m in messages if "plugin linter failed" in m.message]
         assert len(error_messages) >= 1
+
+
+class TestLintSnippetReferences:
+    """tests for snippet reference validation."""
+
+    def test_valid_snippet_reference(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "file.txt").write_text("content")
+
+        content = "some text {{> snippet:test/file.txt}} more text"
+        messages = lint_snippet_references(tmp_path, content, "test.md")
+        assert messages == []
+
+    def test_missing_snippet_reference(self, tmp_path):
+        content = "text {{> snippet:nonexistent/file.txt}} more"
+        messages = lint_snippet_references(tmp_path, content, "test.md")
+        assert len(messages) == 1
+        assert messages[0].level == "error"
+        assert "snippet not found" in messages[0].message
+        assert messages[0].line == 1
+
+    def test_multiple_references(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "a.txt").write_text("a")
+
+        content = "{{> snippet:test/a.txt}}\n{{> snippet:missing/b.txt}}"
+        messages = lint_snippet_references(tmp_path, content, "test.md")
+        assert len(messages) == 1
+        assert messages[0].line == 2
+
+    def test_no_references(self, tmp_path):
+        content = "just plain text with {{named}} and $1"
+        messages = lint_snippet_references(tmp_path, content, "test.md")
+        assert messages == []
+
+    def test_lint_all_catches_missing_snippet(self, tmp_path):
+        """lint_all should report errors for invocations with missing snippet refs."""
+        invocations = tmp_path / ".familiar" / "invocations"
+        invocations.mkdir(parents=True)
+        (invocations / "bad.md").write_text(
+            "task: do something\n\ninputs\n- $ARGUMENTS\n\n"
+            "{{> snippet:nonexistent/file.txt}}\n\noutput\n- results\n"
+        )
+
+        messages = lint_all(tmp_path)
+        snippet_errors = [
+            m
+            for m in messages
+            if "snippet not found" in m.message and "bad.md" in m.file
+        ]
+        assert len(snippet_errors) == 1

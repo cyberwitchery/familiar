@@ -5,12 +5,15 @@ from __future__ import annotations
 import pytest
 
 from familiar.render import (
-    substitute,
-    load_text,
-    compose_system,
-    render_invocation,
-    list_items,
     NotFoundError,
+    compose_system,
+    list_items,
+    list_snippets,
+    load_snippet,
+    load_text,
+    render_invocation,
+    resolve_includes,
+    substitute,
 )
 
 
@@ -200,3 +203,125 @@ class TestListItems:
         # no local overrides, but still gets builtins
         items = list_items(tmp_path, "conjurings")
         assert len(items) > 0
+
+
+class TestLoadSnippet:
+    """tests for loading snippets."""
+
+    def test_load_builtin_snippet(self, tmp_path):
+        result = load_snippet(tmp_path, "python/pyproject.toml")
+        assert "[project]" in result
+
+    def test_local_override(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "python"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "pyproject.toml").write_text("custom pyproject")
+        result = load_snippet(tmp_path, "python/pyproject.toml")
+        assert result == "custom pyproject"
+
+    def test_path_traversal_rejected(self, tmp_path):
+        with pytest.raises(NotFoundError, match="invalid snippet path"):
+            load_snippet(tmp_path, "../../../etc/passwd")
+
+    def test_single_segment_rejected(self, tmp_path):
+        with pytest.raises(NotFoundError, match="invalid snippet path"):
+            load_snippet(tmp_path, "nosubdir")
+
+    def test_unknown_snippet_raises(self, tmp_path):
+        with pytest.raises(NotFoundError, match="unknown snippet"):
+            load_snippet(tmp_path, "nonexistent/file.txt")
+
+
+class TestResolveIncludes:
+    """tests for snippet include resolution."""
+
+    def test_single_include(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "greeting.txt").write_text("hello world")
+
+        text = "before {{> snippet:test/greeting.txt}} after"
+        result = resolve_includes(tmp_path, text)
+        assert result == "before hello world after"
+
+    def test_multiple_includes(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "a.txt").write_text("AAA")
+        (snippet_dir / "b.txt").write_text("BBB")
+
+        text = "{{> snippet:test/a.txt}} and {{> snippet:test/b.txt}}"
+        result = resolve_includes(tmp_path, text)
+        assert result == "AAA and BBB"
+
+    def test_missing_snippet_raises(self, tmp_path):
+        text = "{{> snippet:nonexistent/file.txt}}"
+        with pytest.raises(NotFoundError, match="unknown snippet"):
+            resolve_includes(tmp_path, text)
+
+    def test_include_before_substitute(self, tmp_path):
+        """Include resolution happens before placeholder substitution."""
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "template.txt").write_text("name = $1")
+
+        invocations = tmp_path / ".familiar" / "invocations"
+        invocations.mkdir(parents=True)
+        (invocations / "test.md").write_text("{{> snippet:test/template.txt}}")
+
+        result = render_invocation(tmp_path, "test", ["myapp"], {})
+        assert result == "name = myapp"
+
+    def test_no_includes_unchanged(self, tmp_path):
+        text = "no includes here, just {{named}} and $1"
+        result = resolve_includes(tmp_path, text)
+        assert result == text
+
+    def test_whitespace_in_directive(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "file.txt").write_text("content")
+
+        text = "{{>  snippet:test/file.txt  }}"
+        result = resolve_includes(tmp_path, text)
+        assert result == "content"
+
+
+class TestListSnippets:
+    """tests for listing snippets."""
+
+    def test_list_builtin_snippets(self, tmp_path):
+        items = list_snippets(tmp_path)
+        paths = [path for path, _, _ in items]
+        assert "python/pyproject.toml" in paths
+        assert "rust/Cargo.toml" in paths
+
+    def test_list_local_override_marked(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "python"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "pyproject.toml").write_text("custom")
+
+        items = list_snippets(tmp_path)
+        pyproject_items = [
+            (p, f, loc) for p, f, loc in items if p == "python/pyproject.toml"
+        ]
+        assert len(pyproject_items) == 1
+        _, _, is_local = pyproject_items[0]
+        assert is_local is True
+
+    def test_list_sorted(self, tmp_path):
+        items = list_snippets(tmp_path)
+        paths = [path for path, _, _ in items]
+        assert paths == sorted(paths)
+
+    def test_list_local_custom_snippet(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "custom"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "file.txt").write_text("first line here")
+
+        items = list_snippets(tmp_path)
+        custom_items = [(p, f, loc) for p, f, loc in items if p == "custom/file.txt"]
+        assert len(custom_items) == 1
+        _, first_line, is_local = custom_items[0]
+        assert is_local is True
+        assert first_line == "first line here"

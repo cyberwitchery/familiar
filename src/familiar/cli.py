@@ -13,7 +13,13 @@ from pathlib import Path
 
 from .agents import get_agents, get_agent
 from .lint import lint_all
-from .render import render_invocation, compose_system, list_items, NotFoundError
+from .render import (
+    NotFoundError,
+    compose_system,
+    list_items,
+    list_snippets,
+    render_invocation,
+)
 
 # exit codes
 EXIT_SUCCESS = 0
@@ -145,6 +151,10 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             hint="run 'familiar list invocations' to see available options",
         )
 
+    if args.dry_run:
+        print(prompt)
+        return EXIT_SUCCESS
+
     target_dir = repo_root
     if args.worktree:
         target_dir = create_worktree(repo_root)
@@ -186,16 +196,23 @@ def cmd_list(args: argparse.Namespace) -> int:
     repo_root = find_repo_root(Path(args.into or os.getcwd()))
 
     if args.kind is None:
-        # list both
+        # list all
         conjurings = list_items(repo_root, "conjurings")
         invocations = list_items(repo_root, "invocations")
+        snippets = list_snippets(repo_root)
         print("conjurings:")
         _print_items(conjurings, args.verbose, indent="  ")
         print("\ninvocations:")
         _print_items(invocations, args.verbose, indent="  ")
+        if snippets:
+            print("\nsnippets:")
+            _print_items(snippets, args.verbose, indent="  ")
         return EXIT_SUCCESS
 
-    items = list_items(repo_root, args.kind)
+    if args.kind == "snippets":
+        items = list_snippets(repo_root)
+    else:
+        items = list_items(repo_root, args.kind)
 
     if not items:
         print(f"no {args.kind} found")
@@ -279,6 +296,9 @@ def main() -> None:
         "--headless", action="store_true", help="run without interactive UI"
     )
     invoke.add_argument(
+        "--dry-run", action="store_true", help="print rendered prompt and exit"
+    )
+    invoke.add_argument(
         "--worktree", action="store_true", help="run in a separate git worktree"
     )
     invoke.add_argument("--kv", nargs="*", help="named arguments as key=value pairs")
@@ -296,8 +316,8 @@ def main() -> None:
     list_cmd.add_argument(
         "kind",
         nargs="?",
-        choices=["conjurings", "invocations"],
-        help="what to list (default: both)",
+        choices=["conjurings", "invocations", "snippets"],
+        help="what to list (default: all)",
     )
     list_cmd.add_argument(
         "--into", help="target repo path (default: current directory)"

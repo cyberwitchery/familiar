@@ -1,5 +1,12 @@
 # changelog
 
+## 0.3.0
+
+- **snippets**: added reusable file templates ("snippets") that invocations can include via `{{> snippet:path}}`. built-in snippets for python, rust, and node CI workflows and project configs. local overrides in `.familiar/snippets/`. `familiar list snippets` to discover available snippets. `familiar lint` validates snippet references.
+- **refactored scaffold invocations**: `bootstrap-python`, `bootstrap-rust`, and `add-ci` now use snippet includes instead of embedding file bodies directly.
+- **dry-run**: added `--dry-run` flag to `invoke` command to print the rendered prompt without running the agent.
+- **bandit**: added bandit security linter to CI and dev dependencies.
+
 ## 0.2.1
 
 - **renamed templates to conjurings**: internal `data/templates/` directory renamed to `data/conjurings/`, matching the user-facing terminology. local overrides now go in `.familiar/conjurings/`. linter plugin entry point is now `familiar.linters.conjurings`.

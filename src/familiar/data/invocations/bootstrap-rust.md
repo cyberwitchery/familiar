@@ -39,17 +39,7 @@ STOP and ask if:
 ## cargo.toml structure
 
 ```toml
-[package]
-name = "<crate_name>"
-version = "0.1.0"
-edition = "2021"
-rust-version = "<msrv>"  # if provided
-license = "<license>"    # if provided
-description = "TODO: add description"
-
-[dependencies]
-
-[dev-dependencies]
+{{> snippet:rust/Cargo.toml}}
 ```
 
 ## acceptance criteria

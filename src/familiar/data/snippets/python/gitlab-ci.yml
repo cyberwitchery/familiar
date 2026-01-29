@@ -1,0 +1,36 @@
+stages:
+  - check
+  - test
+
+variables:
+  UV_CACHE_DIR: .uv-cache
+
+cache:
+  paths:
+    - .uv-cache/
+
+.python:
+  image: python:3.13
+  before_script:
+    - pip install uv
+    - uv sync --all-extras --dev
+
+lint:
+  extends: .python
+  stage: check
+  script:
+    - uv run ruff format --check .
+    - uv run ruff check .
+
+typecheck:
+  extends: .python
+  stage: check
+  script:
+    - uv run mypy .
+
+test:
+  extends: .python
+  stage: test
+  script:
+    - uv run pytest --cov
+  coverage: '/TOTAL.*\s+(\d+%)/'

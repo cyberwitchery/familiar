@@ -159,6 +159,7 @@ class TestCmdInvoke:
                 invocation="explain",
                 into=str(tmp_path),
                 headless=True,
+                dry_run=False,
                 kv=None,
                 inv_args=["some code"],
                 worktree=False,
@@ -176,6 +177,7 @@ class TestCmdInvoke:
             invocation="nonexistent",
             into=str(tmp_path),
             headless=True,
+            dry_run=False,
             kv=None,
             inv_args=[],
             worktree=False,
@@ -195,6 +197,7 @@ class TestCmdInvoke:
                 invocation="custom",
                 into=str(tmp_path),
                 headless=True,
+                dry_run=False,
                 kv=["mykey=myvalue"],
                 inv_args=[],
                 worktree=False,
@@ -202,6 +205,37 @@ class TestCmdInvoke:
             cmd_invoke(args)
             prompt = mock_run.call_args[0][2]
             assert "value is myvalue" in prompt
+
+    def test_dry_run_prints_prompt(self, tmp_path, capsys):
+        args = argparse.Namespace(
+            agent="claude",
+            invocation="explain",
+            into=str(tmp_path),
+            headless=False,
+            dry_run=True,
+            kv=None,
+            inv_args=["some code"],
+            worktree=False,
+        )
+        result = cmd_invoke(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "explain" in captured.out.lower()
+
+    def test_dry_run_does_not_run_agent(self, tmp_path):
+        with patch("familiar.cli.run_agent") as mock_run:
+            args = argparse.Namespace(
+                agent="claude",
+                invocation="explain",
+                into=str(tmp_path),
+                headless=False,
+                dry_run=True,
+                kv=None,
+                inv_args=[],
+                worktree=False,
+            )
+            cmd_invoke(args)
+            mock_run.assert_not_called()
 
     def test_invoke_with_worktree(self, tmp_path):
         with patch(
@@ -217,6 +251,7 @@ class TestCmdInvoke:
                         invocation="explain",
                         into=str(tmp_path),
                         headless=True,
+                        dry_run=False,
                         kv=None,
                         inv_args=[],
                         worktree=True,
@@ -233,7 +268,7 @@ class TestCmdInvoke:
 class TestCmdList:
     """tests for list command."""
 
-    def test_list_both(self, tmp_path, capsys):
+    def test_list_all(self, tmp_path, capsys):
         args = argparse.Namespace(
             kind=None,
             into=str(tmp_path),
@@ -244,6 +279,7 @@ class TestCmdList:
         captured = capsys.readouterr()
         assert "conjurings:" in captured.out
         assert "invocations:" in captured.out
+        assert "snippets:" in captured.out
         assert "core" in captured.out
         assert "explain" in captured.out
 
@@ -309,6 +345,18 @@ class TestCmdList:
         cmd_list(args)
         captured = capsys.readouterr()
         assert "python (local)" in captured.out
+
+    def test_list_snippets(self, tmp_path, capsys):
+        args = argparse.Namespace(
+            kind="snippets",
+            into=str(tmp_path),
+            verbose=False,
+        )
+        result = cmd_list(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "python/pyproject.toml" in captured.out
+        assert "rust/Cargo.toml" in captured.out
 
 
 class TestCmdLint:

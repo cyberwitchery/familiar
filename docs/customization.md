@@ -1,6 +1,6 @@
 # customization
 
-familiar can be extended with local conjurings and invocations.
+familiar can be extended with local conjurings, invocations, and snippets.
 
 ## local overrides
 
@@ -14,6 +14,11 @@ create a `.familiar/` directory in your repository:
   invocations/
     my-task.md        # new invocation
     add-tests.md      # override built-in
+  snippets/
+    python/
+      pyproject.toml  # override built-in snippet
+    custom/
+      setup.cfg       # new snippet
 ```
 
 local files take precedence over built-ins.
@@ -78,6 +83,25 @@ familiar invoke codex add-endpoint "GET /users/{id}"
 | `$2` | second positional arg | `familiar invoke x task foo bar` → `bar` |
 | `$ARGUMENTS` | all args joined | `familiar invoke x task foo bar` → `foo bar` |
 | `{{key}}` | named arg | `--kv key=value` → `value` |
+| `{{> snippet:path}}` | include a snippet | `{{> snippet:python/pyproject.toml}}` |
+
+## snippet includes
+
+invocations can include reusable file templates (snippets) by reference:
+
+```markdown
+task: bootstrap a python project
+
+## pyproject.toml structure
+
+```toml
+{{> snippet:python/pyproject.toml}}
+```
+```
+
+snippet includes are resolved before placeholder substitution, so snippets can contain `$1`, `{{key}}`, etc.
+
+see [snippets](snippets.md) for the full list of built-in snippets.
 
 ## sharing customizations
 
