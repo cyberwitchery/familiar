@@ -150,13 +150,13 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         target_dir = create_worktree(repo_root)
         print(f"created worktree at {target_dir}")
 
-        # Copy instruction file if it exists in the original repo
+        # Best-effort copy of instruction file into the worktree
         try:
             agent = get_agent(args.agent)
             instr_file = repo_root / agent.output_file
             if instr_file.exists():
                 shutil.copy2(instr_file, target_dir / agent.output_file)
-        except Exception:
+        except (OSError, KeyError):
             pass
 
     try:

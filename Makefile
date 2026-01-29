@@ -13,6 +13,7 @@ lint:
 	ruff format --check .
 	ruff check .
 	mypy .
+	bandit -r src/ -s B404,B603,B607
 
 test:
 	pytest -q
