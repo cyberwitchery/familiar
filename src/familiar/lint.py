@@ -1,4 +1,4 @@
-"""Linting for familiar templates and invocations."""
+"""Linting for familiar conjurings and invocations."""
 
 from __future__ import annotations
 
@@ -193,11 +193,11 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
 LinterFunc = Callable[[str, str], list[LintMessage]]
 
 
-def load_linters(kind: Literal["templates", "invocations"]) -> list[LinterFunc]:
+def load_linters(kind: Literal["conjurings", "invocations"]) -> list[LinterFunc]:
     """Load linter plugins for the given kind.
 
     Args:
-        kind: Either "templates" or "invocations".
+        kind: Either "conjurings" or "invocations".
 
     Returns:
         List of linter functions from plugins.
@@ -227,11 +227,11 @@ def load_linters(kind: Literal["templates", "invocations"]) -> list[LinterFunc]:
 
 def lint_collection(
     repo_root: Path,
-    kind: Literal["templates", "invocations"],
+    kind: Literal["conjurings", "invocations"],
     builtin_linter: LinterFunc,
     plugin_linters: list[LinterFunc],
 ) -> list[LintMessage]:
-    """Lint a collection of items (templates or invocations)."""
+    """Lint a collection of items (conjurings or invocations)."""
     messages: list[LintMessage] = []
     for name, _, is_local in list_items(repo_root, kind):
         try:
@@ -269,7 +269,7 @@ def lint_collection(
 
 
 def lint_all(repo_root: Path) -> list[LintMessage]:
-    """Lint all templates and invocations.
+    """Lint all conjurings and invocations.
 
     Runs built-in linters and any plugin linters registered via entry points.
 
@@ -278,12 +278,12 @@ def lint_all(repo_root: Path) -> list[LintMessage]:
     messages: list[LintMessage] = []
 
     # Load plugin linters
-    template_linters = load_linters("templates")
+    conjuring_linters = load_linters("conjurings")
     invocation_linters = load_linters("invocations")
 
-    # Lint templates
+    # Lint conjurings
     messages.extend(
-        lint_collection(repo_root, "templates", lint_template, template_linters)
+        lint_collection(repo_root, "conjurings", lint_template, conjuring_linters)
     )
 
     # Lint invocations

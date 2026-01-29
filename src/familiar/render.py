@@ -1,4 +1,4 @@
-"""Render system and user prompts from templates and invocations."""
+"""Render system and user prompts from conjurings and invocations."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ _VALID_NAME = re.compile(r"^[a-z0-9_-]+$")
 
 
 class NotFoundError(Exception):
-    """Raised when a template or invocation is not found."""
+    """Raised when a conjuring or invocation is not found."""
 
 
 def load_text(repo_root: Path, kind: str, name: str) -> str:
-    """Load a template or invocation; local overrides in .familiar override package data."""
+    """Load a conjuring or invocation; local overrides in .familiar override package data."""
     if not _VALID_NAME.match(name):
         raise NotFoundError(f"invalid {kind.rstrip('s')} name: {name}")
     override = repo_root / ".familiar" / kind / f"{name}.md"
@@ -64,7 +64,7 @@ def substitute(text: str, args: list[str], kv: dict[str, str]) -> str:
 
 
 def list_items(repo_root: Path, kind: str) -> list[tuple[str, str, bool]]:
-    """List available templates or invocations.
+    """List available conjurings or invocations.
 
     Returns list of (name, first_line, is_local) tuples, sorted by name.
     """
@@ -101,10 +101,10 @@ def list_items(repo_root: Path, kind: str) -> list[tuple[str, str, bool]]:
 
 def compose_system(repo_root: Path, conjurings: list[str]) -> str:
     """Compose system instructions from core + selected conjurings."""
-    core = load_text(repo_root, "templates", "core").strip()
+    core = load_text(repo_root, "conjurings", "core").strip()
     parts: list[str] = [core]
     for name in conjurings:
-        parts.append(load_text(repo_root, "templates", name).strip())
+        parts.append(load_text(repo_root, "conjurings", name).strip())
     return "\n\n".join(parts)
 
 

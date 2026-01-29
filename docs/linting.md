@@ -1,6 +1,6 @@
 # linting
 
-`familiar lint` validates templates and invocations. it catches common issues before they cause problems at runtime.
+`familiar lint` validates conjurings and invocations. it catches common issues before they cause problems at runtime.
 
 ## usage
 
@@ -22,9 +22,9 @@ familiar lint [--into <path>] [--errors-only]
 
 ## rules
 
-### templates (conjurings)
+### conjurings
 
-templates in `.familiar/templates/*.md` or built-ins.
+conjurings in `.familiar/conjurings/*.md` or built-ins.
 
 | level | rule |
 |-------|------|

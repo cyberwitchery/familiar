@@ -1,5 +1,9 @@
 # changelog
 
+## 0.2.1
+
+- **renamed templates to conjurings**: internal `data/templates/` directory renamed to `data/conjurings/`, matching the user-facing terminology. local overrides now go in `.familiar/conjurings/`. linter plugin entry point is now `familiar.linters.conjurings`.
+
 ## 0.2.0
 
 - **git worktrees**: added `--worktree` flag to `invoke` command. This allows running agents in a separate, isolated git worktree to avoid interference with local changes.

@@ -187,7 +187,7 @@ def cmd_list(args: argparse.Namespace) -> int:
 
     if args.kind is None:
         # list both
-        conjurings = list_items(repo_root, "templates")
+        conjurings = list_items(repo_root, "conjurings")
         invocations = list_items(repo_root, "invocations")
         print("conjurings:")
         _print_items(conjurings, args.verbose, indent="  ")
@@ -195,10 +195,7 @@ def cmd_list(args: argparse.Namespace) -> int:
         _print_items(invocations, args.verbose, indent="  ")
         return EXIT_SUCCESS
 
-    # map CLI names to internal names; "conjurings" is the user-facing term
-    # for what are stored internally as "templates"
-    kind = "templates" if args.kind == "conjurings" else args.kind
-    items = list_items(repo_root, kind)
+    items = list_items(repo_root, args.kind)
 
     if not items:
         print(f"no {args.kind} found")
@@ -312,7 +309,7 @@ def main() -> None:
 
     lint_cmd = sub.add_parser(
         "lint",
-        help="lint templates and invocations",
+        help="lint conjurings and invocations",
         epilog="example: familiar lint --errors-only",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

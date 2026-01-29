@@ -176,7 +176,7 @@ output
 
 
 class TestLintAll:
-    """tests for linting all templates and invocations."""
+    """tests for linting all conjurings and invocations."""
 
     def test_lint_all_builtins(self, tmp_path):
         # should lint all built-ins without errors
@@ -185,7 +185,7 @@ class TestLintAll:
         assert errors == [], f"Unexpected errors: {errors}"
 
     def test_lint_all_with_local_override(self, tmp_path):
-        templates = tmp_path / ".familiar" / "templates"
+        templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "bad.md").write_text("no heading")
 
@@ -211,7 +211,7 @@ class TestLinterPlugins:
     """tests for linter plugin loading."""
 
     def test_load_linters_returns_list(self):
-        linters = load_linters("templates")
+        linters = load_linters("conjurings")
         assert isinstance(linters, list)
 
     def test_load_linters_invocations(self):
@@ -226,7 +226,7 @@ class TestLinterPlugins:
 
         with patch("familiar.lint.entry_points", return_value=[mock_ep]):
             with pytest.warns(UserWarning, match="not callable"):
-                linters = load_linters("templates")
+                linters = load_linters("conjurings")
             assert len(linters) == 0
 
     def test_load_error_warns(self):
@@ -237,7 +237,7 @@ class TestLinterPlugins:
 
         with patch("familiar.lint.entry_points", return_value=[mock_ep]):
             with pytest.warns(UserWarning, match="failed to load"):
-                linters = load_linters("templates")
+                linters = load_linters("conjurings")
             assert len(linters) == 0
 
     def test_plugin_linter_called(self, tmp_path):
@@ -253,14 +253,14 @@ class TestLinterPlugins:
         mock_ep.load.return_value = mock_linter
 
         # Create a local template to lint
-        templates = tmp_path / ".familiar" / "templates"
+        templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "mytemplate.md").write_text("# test")
 
         with patch("familiar.lint.entry_points") as mock_entry_points:
             # Return our mock for templates, empty for invocations
             def ep_side_effect(group):
-                if group == "familiar.linters.templates":
+                if group == "familiar.linters.conjurings":
                     return [mock_ep]
                 return []
 
@@ -282,14 +282,14 @@ class TestLinterPlugins:
         mock_ep.load.return_value = bad_linter
 
         # Create a local template
-        templates = tmp_path / ".familiar" / "templates"
+        templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "test.md").write_text("# test")
 
         with patch("familiar.lint.entry_points") as mock_entry_points:
 
             def ep_side_effect(group):
-                if group == "familiar.linters.templates":
+                if group == "familiar.linters.conjurings":
                     return [mock_ep]
                 return []
 

@@ -18,9 +18,9 @@ make test    # run pytest
 make coverage # run tests with coverage report
 ```
 
-## adding a conjuring (template)
+## adding a conjuring
 
-1. create `src/familiar/data/templates/<name>.md`
+1. create `src/familiar/data/conjurings/<name>.md`
 2. use lowercase kebab-case for the filename
 3. start with a heading describing the conjuring
 4. keep it concise and actionable

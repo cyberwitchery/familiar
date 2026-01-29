@@ -3,7 +3,7 @@
 familiar supports plugins via Python entry points:
 
 - **agent plugins** - add new agents (gemini, aider, etc.)
-- **linter plugins** - add custom lint rules for templates and invocations
+- **linter plugins** - add custom lint rules for conjurings and invocations
 
 ---
 
@@ -119,10 +119,10 @@ def check_max_length(content: str, name: str) -> list[LintMessage]:
 
 #### 2. register the entry point
 
-use `familiar.linters.templates` for template linters, `familiar.linters.invocations` for invocation linters:
+use `familiar.linters.conjurings` for conjuring linters, `familiar.linters.invocations` for invocation linters:
 
 ```toml
-[project.entry-points."familiar.linters.templates"]
+[project.entry-points."familiar.linters.conjurings"]
 max-length = "my_plugin.linters:check_max_length"
 
 [project.entry-points."familiar.linters.invocations"]
@@ -148,7 +148,7 @@ def my_linter(content: str, name: str) -> list[LintMessage]:
 | parameter | type | description |
 |-----------|------|-------------|
 | `content` | `str` | full text content of the file |
-| `name` | `str` | display name (e.g., `.familiar/templates/foo.md`) |
+| `name` | `str` | display name (e.g., `.familiar/conjurings/foo.md`) |
 | returns | `list[LintMessage]` | list of warnings/errors |
 
 ### LintMessage

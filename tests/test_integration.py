@@ -72,7 +72,7 @@ class TestConjureIntegration:
             text=True,
         )
         assert result.returncode != 0
-        assert "unknown template" in result.stderr
+        assert "unknown conjuring" in result.stderr
 
 
 class TestInvokeIntegration:
@@ -226,7 +226,7 @@ class TestListIntegration:
         assert ":" in result.stdout
 
     def test_list_with_local_override(self, tmp_path):
-        templates = tmp_path / ".familiar" / "templates"
+        templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "custom.md").write_text("# my custom profile")
 
@@ -260,7 +260,7 @@ class TestLintIntegration:
         assert "all checks passed" in result.stdout
 
     def test_lint_with_invalid_template(self, tmp_path):
-        templates = tmp_path / ".familiar" / "templates"
+        templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "bad.md").write_text("no heading here")
 
@@ -274,7 +274,7 @@ class TestLintIntegration:
         assert "heading" in result.stderr
 
     def test_lint_errors_only(self, tmp_path):
-        templates = tmp_path / ".familiar" / "templates"
+        templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "bad.md").write_text("no heading here")
 

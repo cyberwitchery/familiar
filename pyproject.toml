@@ -1,6 +1,6 @@
 [project]
 name = "familiar-cli"
-version = "0.2.0"
+version = "0.2.1"
 description = "compose and invoke ai agent prompts from reusable templates"
 readme = "readme.md"
 license = "MIT"
@@ -39,7 +39,7 @@ package-dir = {"" = "src"}
 dev = ["ruff", "mypy", "pytest", "pytest-cov"]
 
 [tool.setuptools.package-data]
-"familiar.data.templates" = ["*.md"]
+"familiar.data.conjurings" = ["*.md"]
 "familiar.data.invocations" = ["*.md"]
 
 [tool.ruff]

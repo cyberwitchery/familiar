@@ -8,8 +8,8 @@ create a `.familiar/` directory in your repository:
 
 ```
 .familiar/
-  templates/
-    myprofile.md      # new profile
+  conjurings/
+    myprofile.md      # new conjuring
     rust.md           # override built-in
   invocations/
     my-task.md        # new invocation
@@ -39,7 +39,7 @@ example custom profile for a django project:
 - use django's built-in auth, don't roll your own.
 ```
 
-save as `.familiar/templates/django.md`, then use:
+save as `.familiar/conjurings/django.md`, then use:
 
 ```bash
 familiar conjure codex python django
@@ -83,6 +83,6 @@ familiar invoke codex add-endpoint "GET /users/{id}"
 
 to share customizations across repos, you can:
 
-1. create a separate repo with your `.familiar/` templates
+1. create a separate repo with your `.familiar/` conjurings
 2. symlink or copy them into projects
 3. or fork familiar and add them to the package directly

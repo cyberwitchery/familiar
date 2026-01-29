@@ -61,10 +61,10 @@ class TestSubstitute:
 
 
 class TestLoadText:
-    """tests for loading templates and invocations."""
+    """tests for loading conjurings and invocations."""
 
     def test_load_builtin_template(self, tmp_path):
-        result = load_text(tmp_path, "templates", "core")
+        result = load_text(tmp_path, "conjurings", "core")
         assert "# core profile" in result.lower() or "workflow" in result.lower()
 
     def test_load_builtin_invocation(self, tmp_path):
@@ -72,26 +72,26 @@ class TestLoadText:
         assert "explain" in result.lower()
 
     def test_local_override(self, tmp_path):
-        override_dir = tmp_path / ".familiar" / "templates"
+        override_dir = tmp_path / ".familiar" / "conjurings"
         override_dir.mkdir(parents=True)
         (override_dir / "core.md").write_text("custom core content")
-        result = load_text(tmp_path, "templates", "core")
+        result = load_text(tmp_path, "conjurings", "core")
         assert result == "custom core content"
 
     def test_local_custom_template(self, tmp_path):
-        override_dir = tmp_path / ".familiar" / "templates"
+        override_dir = tmp_path / ".familiar" / "conjurings"
         override_dir.mkdir(parents=True)
         (override_dir / "custom.md").write_text("my custom template")
-        result = load_text(tmp_path, "templates", "custom")
+        result = load_text(tmp_path, "conjurings", "custom")
         assert result == "my custom template"
 
     def test_invalid_name_raises(self, tmp_path):
         with pytest.raises(NotFoundError, match="invalid"):
-            load_text(tmp_path, "templates", "../../../etc/passwd")
+            load_text(tmp_path, "conjurings", "../../../etc/passwd")
 
     def test_unknown_template_raises(self, tmp_path):
-        with pytest.raises(NotFoundError, match="unknown template"):
-            load_text(tmp_path, "templates", "nonexistent")
+        with pytest.raises(NotFoundError, match="unknown conjuring"):
+            load_text(tmp_path, "conjurings", "nonexistent")
 
     def test_unknown_invocation_raises(self, tmp_path):
         with pytest.raises(NotFoundError, match="unknown invocation"):
@@ -108,7 +108,7 @@ class TestComposeSystem:
 
     def test_compose_order(self, tmp_path):
         # create local overrides to control content
-        templates = tmp_path / ".familiar" / "templates"
+        templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "core.md").write_text("CORE")
         (templates / "first.md").write_text("FIRST")
@@ -119,7 +119,7 @@ class TestComposeSystem:
         assert system == "CORE\n\nFIRST\n\nSECOND"
 
     def test_compose_missing_profile_raises(self, tmp_path):
-        with pytest.raises(NotFoundError, match="unknown template"):
+        with pytest.raises(NotFoundError, match="unknown conjuring"):
             compose_system(tmp_path, ["nonexistent"])
 
 
@@ -140,10 +140,10 @@ class TestRenderInvocation:
 
 
 class TestListItems:
-    """tests for listing templates and invocations."""
+    """tests for listing conjurings and invocations."""
 
     def test_list_builtin_templates(self, tmp_path):
-        items = list_items(tmp_path, "templates")
+        items = list_items(tmp_path, "conjurings")
         names = [name for name, _, _ in items]
         assert "core" in names
         assert "python" in names
@@ -161,18 +161,18 @@ class TestListItems:
         assert "__noop__" not in names
 
     def test_list_includes_first_line(self, tmp_path):
-        items = list_items(tmp_path, "templates")
+        items = list_items(tmp_path, "conjurings")
         core_items = [(n, f, loc) for n, f, loc in items if n == "core"]
         assert len(core_items) == 1
         _, first_line, _ = core_items[0]
         assert first_line  # not empty
 
     def test_list_local_override_marked(self, tmp_path):
-        templates = tmp_path / ".familiar" / "templates"
+        templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "core.md").write_text("# local core")
 
-        items = list_items(tmp_path, "templates")
+        items = list_items(tmp_path, "conjurings")
         core_items = [(n, f, loc) for n, f, loc in items if n == "core"]
         assert len(core_items) == 1
         _, first_line, is_local = core_items[0]
@@ -180,11 +180,11 @@ class TestListItems:
         assert first_line == "# local core"
 
     def test_list_local_custom_template(self, tmp_path):
-        templates = tmp_path / ".familiar" / "templates"
+        templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "custom.md").write_text("# my custom")
 
-        items = list_items(tmp_path, "templates")
+        items = list_items(tmp_path, "conjurings")
         custom_items = [(n, f, loc) for n, f, loc in items if n == "custom"]
         assert len(custom_items) == 1
         _, first_line, is_local = custom_items[0]
@@ -192,11 +192,11 @@ class TestListItems:
         assert first_line == "# my custom"
 
     def test_list_sorted(self, tmp_path):
-        items = list_items(tmp_path, "templates")
+        items = list_items(tmp_path, "conjurings")
         names = [name for name, _, _ in items]
         assert names == sorted(names)
 
     def test_list_empty_dir(self, tmp_path):
         # no local overrides, but still gets builtins
-        items = list_items(tmp_path, "templates")
+        items = list_items(tmp_path, "conjurings")
         assert len(items) > 0

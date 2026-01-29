@@ -145,7 +145,7 @@ class TestCmdConjure:
             conjurings=["nonexistent"],
             into=str(tmp_path),
         )
-        with pytest.raises(CliError, match="unknown template"):
+        with pytest.raises(CliError, match="unknown conjuring"):
             cmd_conjure(args)
 
 
@@ -283,7 +283,7 @@ class TestCmdList:
         assert ":" in captured.out
 
     def test_list_local_marked(self, tmp_path, capsys):
-        templates = tmp_path / ".familiar" / "templates"
+        templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "custom.md").write_text("# my custom profile")
 
@@ -297,7 +297,7 @@ class TestCmdList:
         assert "custom (local)" in captured.out
 
     def test_list_override_marked_local(self, tmp_path, capsys):
-        templates = tmp_path / ".familiar" / "templates"
+        templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "python.md").write_text("# custom python")
 
@@ -325,7 +325,7 @@ class TestCmdLint:
         assert "all checks passed" in captured.out
 
     def test_lint_with_warning(self, tmp_path, capsys):
-        templates = tmp_path / ".familiar" / "templates"
+        templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "bad.md").write_text("no heading here")
 
@@ -340,7 +340,7 @@ class TestCmdLint:
         assert "heading" in captured.err
 
     def test_lint_with_error(self, tmp_path, capsys):
-        templates = tmp_path / ".familiar" / "templates"
+        templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "empty.md").write_text("")
 
@@ -354,7 +354,7 @@ class TestCmdLint:
         assert "error" in captured.err
 
     def test_lint_errors_only(self, tmp_path, capsys):
-        templates = tmp_path / ".familiar" / "templates"
+        templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "bad.md").write_text("no heading here")
 

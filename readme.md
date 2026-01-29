@@ -3,9 +3,9 @@
 [![pypi](https://img.shields.io/pypi/v/familiar-cli)](https://pypi.org/project/familiar-cli/)
 [![docs](https://readthedocs.org/projects/familiar/badge/?version=latest)](https://familiar.readthedocs.io/)
 
-compose and invoke ai agent prompts from reusable templates.
+compose and invoke ai agent prompts from reusable conjurings and invocations.
 
-ships with a standard set of templates and invocations, or bring your own (mine are
+ships with a standard set of conjurings and invocations, or bring your own (mine are
 very much wip).
 
 ## installation
@@ -57,12 +57,12 @@ familiar list
 
 ## customization
 
-add your own templates and invocations by creating files in `.familiar/` in your repo:
+add your own conjurings and invocations by creating files in `.familiar/` in your repo:
 
 ```
 .familiar/
-  templates/
-    myprofile.md      # new profile
+  conjurings/
+    myprofile.md      # new conjuring
     rust.md           # override built-in
   invocations/
     my-task.md        # new invocation

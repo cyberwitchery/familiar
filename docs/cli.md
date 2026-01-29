@@ -128,7 +128,7 @@ familiar list --into /path/to/repo
 
 ## familiar lint
 
-lint templates and invocations.
+lint conjurings and invocations.
 
 ```
 familiar lint [--into <path>] [--errors-only]
@@ -143,7 +143,7 @@ familiar lint [--into <path>] [--errors-only]
 
 **behavior:**
 
-- checks templates for proper markdown structure
+- checks conjurings for proper markdown structure
 - checks invocations for recommended sections and placeholder documentation
 - errors cause non-zero exit code; warnings do not
 
