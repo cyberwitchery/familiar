@@ -1,5 +1,9 @@
 # changelog
 
+## unreleased
+
+- add release SBOM generation and upload (CycloneDX)
+
 ## 0.3.1
 
 - **auto mode**: added `--auto` flag to `invoke` command to skip agent permission prompts (`--full-auto` for codex, `--dangerously-skip-permissions` for claude).
