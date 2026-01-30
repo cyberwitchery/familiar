@@ -23,11 +23,11 @@ jobs:
       - name: generate sbom
         run: |
           pip install cyclonedx-bom
-          cyclonedx-bom --format json --output-file sbom.cdx.json
+          python -m pip freeze --all | cyclonedx-py requirements - --pyproject pyproject.toml -o "sbom-${{ github.ref_name }}.cdx.json"
       - name: upload sbom
         uses: actions/upload-artifact@v4
         with:
           name: sbom-${{ github.ref_name }}
-          path: sbom.cdx.json
+          path: sbom-${{ github.ref_name }}.cdx.json
       - name: publish to pypi
         uses: pypa/gh-action-pypi-publish@release/v1
