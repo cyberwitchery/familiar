@@ -2,8 +2,8 @@ task: add continuous integration workflow for linting, testing, and static analy
 
 ## inputs
 
-- $1 `platform` (required): CI platform (`github` or `gitlab`)
-- $2 `language` (required): primary language (`python`, `rust`, `node`)
+- `platform` (required): CI platform (`github` or `gitlab`) set to: $1
+- `language` (required): primary language (`python`, `rust`, `node`) set to: $2
 
 ## preconditions
 

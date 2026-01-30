@@ -16,7 +16,9 @@ class Agent(ABC):
     output_file: str
 
     @abstractmethod
-    def run(self, repo_root: Path, prompt: str, headless: bool) -> int:
+    def run(
+        self, repo_root: Path, prompt: str, headless: bool, auto: bool = False
+    ) -> int:
         """Run the agent with the given prompt."""
 
 
@@ -24,13 +26,21 @@ class CodexAgent(Agent):
     name = "codex"
     output_file = "AGENTS.md"
 
-    def run(self, repo_root: Path, prompt: str, headless: bool) -> int:
+    def run(
+        self, repo_root: Path, prompt: str, headless: bool, auto: bool = False
+    ) -> int:
         if headless:
-            cmd = ["codex", "exec", "-C", str(repo_root), "-"]
+            cmd = ["codex"]
+            if auto:
+                cmd.append("--full-auto")
+            cmd.extend(["exec", "--skip-git-repo-check", "-C", str(repo_root), "-"])
             proc = subprocess.run(cmd, input=prompt, text=True)
             return proc.returncode
         else:
-            cmd = ["codex", "-C", str(repo_root), prompt]
+            cmd = ["codex"]
+            if auto:
+                cmd.append("--full-auto")
+            cmd.extend(["-C", str(repo_root), prompt])
             return subprocess.call(cmd)
 
 
@@ -38,11 +48,16 @@ class ClaudeAgent(Agent):
     name = "claude"
     output_file = "CLAUDE.md"
 
-    def run(self, repo_root: Path, prompt: str, headless: bool) -> int:
+    def run(
+        self, repo_root: Path, prompt: str, headless: bool, auto: bool = False
+    ) -> int:
+        cmd = ["claude"]
+        if auto:
+            cmd.append("--dangerously-skip-permissions")
         if headless:
-            cmd = ["claude", "-p", prompt]
+            cmd.extend(["-p", prompt])
         else:
-            cmd = ["claude", prompt]
+            cmd.append(prompt)
         return subprocess.call(cmd, cwd=repo_root)
 
 

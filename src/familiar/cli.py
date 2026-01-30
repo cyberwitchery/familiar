@@ -112,13 +112,15 @@ def parse_kv(pairs: list[str]) -> dict[str, str]:
     return out
 
 
-def run_agent(repo_root: Path, agent_name: str, prompt: str, headless: bool) -> int:
+def run_agent(
+    repo_root: Path, agent_name: str, prompt: str, headless: bool, auto: bool = False
+) -> int:
     try:
         agent = get_agent(agent_name)
     except KeyError as e:
         raise CliError(str(e), hint=f"valid agents: {', '.join(get_agents().keys())}")
     try:
-        return agent.run(repo_root, prompt, headless)
+        return agent.run(repo_root, prompt, headless, auto=auto)
     except FileNotFoundError:
         raise CliError(
             f"{agent_name} not found in PATH",
@@ -170,7 +172,9 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             pass
 
     try:
-        rc = run_agent(target_dir, args.agent, prompt, headless=args.headless)
+        rc = run_agent(
+            target_dir, args.agent, prompt, headless=args.headless, auto=args.auto
+        )
         if args.worktree:
             print(f"\nworktree remains at: {target_dir}")
             print(f"to remove it: git worktree remove {target_dir}")
@@ -294,6 +298,9 @@ def main() -> None:
     invoke.add_argument("--into", help="target repo path (default: current directory)")
     invoke.add_argument(
         "--headless", action="store_true", help="run without interactive UI"
+    )
+    invoke.add_argument(
+        "--auto", action="store_true", help="skip agent permission prompts"
     )
     invoke.add_argument(
         "--dry-run", action="store_true", help="print rendered prompt and exit"

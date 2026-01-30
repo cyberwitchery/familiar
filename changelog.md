@@ -1,5 +1,10 @@
 # changelog
 
+## 0.3.1
+
+- **auto mode**: added `--auto` flag to `invoke` command to skip agent permission prompts (`--full-auto` for codex, `--dangerously-skip-permissions` for claude).
+- **improved invocation arguments**: invocation argument descriptions now use `set to: $N` suffix format for better agent prompt performance.
+
 ## 0.3.0
 
 - **snippets**: added reusable file templates ("snippets") that invocations can include via `{{> snippet:path}}`. built-in snippets for python, rust, and node CI workflows and project configs. local overrides in `.familiar/snippets/`. `familiar list snippets` to discover available snippets. `familiar lint` validates snippet references.

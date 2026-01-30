@@ -2,10 +2,10 @@ task: bootstrap a new rust crate with best practices.
 
 ## inputs
 
-- $1 `crate_name` (required): name of the crate (e.g., `myapp`)
-- $2 `crate_type` (required): `bin` or `lib`
-- $3 `msrv` (optional): minimum supported rust version (e.g., `1.75`)
-- $4 `license` (optional): license identifier (e.g., `MIT`, `Apache-2.0`)
+- `crate_name` (required): name of the crate (e.g., `myapp`) set to: $1
+- `crate_type` (required): `bin` or `lib` set to: $2
+- `msrv` (optional): minimum supported rust version (e.g., `1.75`) set to: $3
+- `license` (optional): license identifier (e.g., `MIT`, `Apache-2.0`) set to: $4
 
 ## preconditions
 

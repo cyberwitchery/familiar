@@ -2,8 +2,8 @@ task: prepare a release with version bump, changelog, and publish commands.
 
 ## inputs
 
-- $1 `version` (required): version (`1.2.0`), bump type (`major`, `minor`, `patch`), or pre-release (`1.2.0-rc.1`)
-- $2 `description` (optional): release summary for changelog
+- `version` (required): version (`1.2.0`), bump type (`major`, `minor`, `patch`), or pre-release (`1.2.0-rc.1`) set to: $1
+- `description` (optional): release summary for changelog set to: $2
 
 ## preconditions
 

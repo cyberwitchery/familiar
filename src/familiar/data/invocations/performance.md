@@ -2,8 +2,8 @@ task: identify performance hotspots, propose optimizations, and measure improvem
 
 ## inputs
 
-- $1 `target` (required): file path, function name, or scope to analyze
-- $2 `metric` (optional): `time`, `memory`, `cpu`, `io`. default: `time`
+- `target` (required): file path, function name, or scope to analyze set to: $1
+- `metric` (optional): `time`, `memory`, `cpu`, `io`. default: `time` set to: $2
 
 ## preconditions
 

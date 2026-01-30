@@ -2,7 +2,7 @@ task: conduct a comprehensive audit of the codebase for deep understanding.
 
 ## inputs
 
-- $1 `focus` (optional): area to emphasize (`architecture`, `security`, `dependencies`, `testing`). default: all.
+- `focus` (optional): area to emphasize (`architecture`, `security`, `dependencies`, `testing`). default: all. set to: $1
 
 ## purpose
 

@@ -130,7 +130,14 @@ class TestCodexAgent:
             assert result == 0
             mock_run.assert_called_once()
             call_args = mock_run.call_args
-            assert call_args[0][0] == ["codex", "exec", "-C", str(tmp_path), "-"]
+            assert call_args[0][0] == [
+                "codex",
+                "exec",
+                "--skip-git-repo-check",
+                "-C",
+                str(tmp_path),
+                "-",
+            ]
             assert call_args[1]["input"] == "test prompt"
             assert call_args[1]["text"] is True
 
@@ -142,6 +149,16 @@ class TestCodexAgent:
             assert result == 0
             mock_call.assert_called_once_with(
                 ["codex", "-C", str(tmp_path), "test prompt"]
+            )
+
+    def test_run_auto(self, tmp_path):
+        agent = CodexAgent()
+
+        with patch("familiar.agents.subprocess.call", return_value=0) as mock_call:
+            result = agent.run(tmp_path, "test prompt", headless=False, auto=True)
+            assert result == 0
+            mock_call.assert_called_once_with(
+                ["codex", "--full-auto", "-C", str(tmp_path), "test prompt"]
             )
 
 
@@ -173,6 +190,17 @@ class TestClaudeAgent:
             result = agent.run(tmp_path, "test prompt", headless=False)
             assert result == 0
             mock_call.assert_called_once_with(["claude", "test prompt"], cwd=tmp_path)
+
+    def test_run_auto(self, tmp_path):
+        agent = ClaudeAgent()
+
+        with patch("familiar.agents.subprocess.call", return_value=0) as mock_call:
+            result = agent.run(tmp_path, "test prompt", headless=False, auto=True)
+            assert result == 0
+            mock_call.assert_called_once_with(
+                ["claude", "--dangerously-skip-permissions", "test prompt"],
+                cwd=tmp_path,
+            )
 
     def test_run_returns_exit_code(self, tmp_path):
         agent = ClaudeAgent()

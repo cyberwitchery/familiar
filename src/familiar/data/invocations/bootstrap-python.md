@@ -2,10 +2,10 @@ task: bootstrap a new python project with modern tooling.
 
 ## inputs
 
-- $1 `package_name` (required): name of the package (e.g., `myapp`)
-- $2 `package_type` (required): `cli` or `lib`
-- $3 `python_version` (optional): minimum python version (default: `3.13`)
-- $4 `license` (optional): license identifier (e.g., `MIT`, `Apache-2.0`)
+- `package_name` (required): name of the package (e.g., `myapp`) set to: $1
+- `package_type` (required): `cli` or `lib` set to: $2
+- `python_version` (optional): minimum python version (default: `3.13`) set to: $3
+- `license` (optional): license identifier (e.g., `MIT`, `Apache-2.0`) set to: $4
 
 ## preconditions
 
