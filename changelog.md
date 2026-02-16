@@ -3,6 +3,8 @@
 ## unreleased
 
 - add release SBOM generation and upload (CycloneDX)
+- add `--save-skill` and `--skill-name` options to `invoke` to export invocations as reusable Claude/Codex skills
+- add `--save-subagent` and `--subagent-name` options to `conjure` to export composed conjurings as reusable Claude/Codex subagents
 
 ## 0.3.1
 

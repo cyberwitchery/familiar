@@ -118,6 +118,24 @@ class TestCodexAgent:
         agent = CodexAgent()
         assert agent.output_file == "AGENTS.md"
 
+    def test_supports_skills(self):
+        agent = CodexAgent()
+        assert agent.supports_skills() is True
+
+    def test_skill_path(self, tmp_path):
+        agent = CodexAgent()
+        path = agent.skill_path(tmp_path, "refactor")
+        assert path == tmp_path / ".codex" / "skills" / "refactor" / "SKILL.md"
+
+    def test_supports_subagents(self):
+        agent = CodexAgent()
+        assert agent.supports_subagents() is True
+
+    def test_subagent_path(self, tmp_path):
+        agent = CodexAgent()
+        path = agent.subagent_path(tmp_path, "python_sec")
+        assert path == tmp_path / ".codex" / "subagents" / "python_sec" / "AGENT.md"
+
     def test_run_headless(self, tmp_path):
         agent = CodexAgent()
         mock_result = MagicMock()
@@ -172,6 +190,24 @@ class TestClaudeAgent:
     def test_output_file(self):
         agent = ClaudeAgent()
         assert agent.output_file == "CLAUDE.md"
+
+    def test_supports_skills(self):
+        agent = ClaudeAgent()
+        assert agent.supports_skills() is True
+
+    def test_skill_path(self, tmp_path):
+        agent = ClaudeAgent()
+        path = agent.skill_path(tmp_path, "review")
+        assert path == tmp_path / ".claude" / "skills" / "review" / "SKILL.md"
+
+    def test_supports_subagents(self):
+        agent = ClaudeAgent()
+        assert agent.supports_subagents() is True
+
+    def test_subagent_path(self, tmp_path):
+        agent = ClaudeAgent()
+        path = agent.subagent_path(tmp_path, "python_sec")
+        assert path == tmp_path / ".claude" / "subagents" / "python_sec" / "AGENT.md"
 
     def test_run_headless(self, tmp_path):
         agent = ClaudeAgent()

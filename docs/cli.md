@@ -20,11 +20,16 @@ familiar conjure <agent> <conjurings...> [--into <path>]
 | option | description |
 |--------|-------------|
 | `--into` | target repository path (default: current directory) |
+| `--save-subagent` | write composed conjurings as a reusable subagent |
+| `--subagent-name` | override subagent name (default: joined conjuring names) |
 
 **behavior:**
 
 - combines core profile with specified conjurings
 - writes `AGENTS.md` (codex) or `CLAUDE.md` (claude) to repo root
+- with `--save-subagent`, also writes a subagent file:
+    - claude: `.claude/subagents/<name>/AGENT.md`
+    - codex: `.codex/subagents/<name>/AGENT.md`
 
 **examples:**
 
@@ -34,6 +39,11 @@ familiar conjure codex rust sec
 
 # python project, different directory
 familiar conjure claude python --into /path/to/repo
+
+# export conjurings as subagents
+familiar conjure claude python sec --save-subagent
+familiar conjure codex rust infra --save-subagent --subagent-name ship_ops
+
 ```
 
 ## familiar invoke
@@ -61,11 +71,16 @@ familiar invoke <agent> <invocation> [--into <path>] [--headless] [--kv <key=val
 | `--auto` | skip agent permission prompts (`--full-auto` for codex, `--dangerously-skip-permissions` for claude) |
 | `--dry-run` | print rendered prompt and exit (does not run the agent) |
 | `--worktree` | run in a separate git worktree to avoid interfering with local changes |
+| `--save-skill` | write rendered invocation as a reusable skill and exit |
+| `--skill-name` | override skill name (default: invocation name) |
 | `--kv` | named arguments as `key=value` pairs |
 
 **behavior:**
 
 - renders invocation with provided arguments
+- with `--save-skill`, writes a skill file and exits:
+    - claude: `.claude/skills/<name>/SKILL.md`
+    - codex: `.codex/skills/<name>/SKILL.md`
 - if `--worktree` is specified:
     - creates a temporary git worktree from `HEAD`
     - copies the agent instruction file (`CLAUDE.md` or `AGENTS.md`) to the worktree
@@ -86,6 +101,10 @@ familiar invoke codex implement-feature --kv spec="add caching"
 
 # preview rendered prompt without running the agent
 familiar invoke codex bootstrap-python myapp cli --dry-run
+
+# export invocation as a reusable skill
+familiar invoke claude code-review --save-skill
+familiar invoke codex refactor src/foo.py --save-skill --skill-name cleanup_refactor
 ```
 
 ## familiar list

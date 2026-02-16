@@ -37,6 +37,20 @@ conjure conjurings to create system instructions for an agent:
 familiar conjure codex rust infra sec
 ```
 
+save composed conjurings as a reusable subagent:
+
+```bash
+familiar conjure claude python sec --save-subagent
+familiar conjure codex rust infra --save-subagent --subagent-name ship_ops
+```
+
+save an invocation as a reusable skill:
+
+```bash
+familiar invoke claude code-review --save-skill
+familiar invoke codex refactor src/foo.py --save-skill --skill-name cleanup_refactor
+```
+
 invoke an action prompt:
 
 ```bash

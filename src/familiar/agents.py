@@ -14,6 +14,10 @@ class Agent(ABC):
 
     name: str
     output_file: str
+    skill_dir: str | None = None
+    skill_file: str = "SKILL.md"
+    subagent_dir: str | None = None
+    subagent_file: str = "AGENT.md"
 
     @abstractmethod
     def run(
@@ -21,10 +25,32 @@ class Agent(ABC):
     ) -> int:
         """Run the agent with the given prompt."""
 
+    def supports_skills(self) -> bool:
+        """Whether this agent supports reusable skill files."""
+        return self.skill_dir is not None
+
+    def skill_path(self, repo_root: Path, skill_name: str) -> Path:
+        """Build the skill path for a given skill name."""
+        if self.skill_dir is None:
+            raise ValueError(f"agent does not support skills: {self.name}")
+        return repo_root / self.skill_dir / skill_name / self.skill_file
+
+    def supports_subagents(self) -> bool:
+        """Whether this agent supports reusable subagent files."""
+        return self.subagent_dir is not None
+
+    def subagent_path(self, repo_root: Path, subagent_name: str) -> Path:
+        """Build the subagent path for a given subagent name."""
+        if self.subagent_dir is None:
+            raise ValueError(f"agent does not support subagents: {self.name}")
+        return repo_root / self.subagent_dir / subagent_name / self.subagent_file
+
 
 class CodexAgent(Agent):
     name = "codex"
     output_file = "AGENTS.md"
+    skill_dir = ".codex/skills"
+    subagent_dir = ".codex/subagents"
 
     def run(
         self, repo_root: Path, prompt: str, headless: bool, auto: bool = False
@@ -47,6 +73,8 @@ class CodexAgent(Agent):
 class ClaudeAgent(Agent):
     name = "claude"
     output_file = "CLAUDE.md"
+    skill_dir = ".claude/skills"
+    subagent_dir = ".claude/subagents"
 
     def run(
         self, repo_root: Path, prompt: str, headless: bool, auto: bool = False

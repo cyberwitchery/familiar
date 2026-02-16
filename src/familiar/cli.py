@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -25,6 +26,8 @@ from .render import (
 EXIT_SUCCESS = 0
 EXIT_ERROR = 1  # general error (agent failed, etc.)
 EXIT_USAGE = 2  # usage error (bad args, missing files, etc.)
+_VALID_SKILL_NAME = re.compile(r"^[a-z0-9_-]+$")
+_VALID_SUBAGENT_NAME = re.compile(r"^[a-z0-9_-]+$")
 
 
 class CliError(Exception):
@@ -99,6 +102,77 @@ def write_instruction(repo_root: Path, agent_name: str, system: str) -> None:
     (repo_root / agent.output_file).write_text(system.strip() + "\n", encoding="utf-8")
 
 
+def write_skill(
+    repo_root: Path, agent_name: str, invocation: str, skill_name: str, prompt: str
+) -> Path:
+    """Write a reusable skill file for supported agents."""
+    if not _VALID_SKILL_NAME.match(skill_name):
+        raise CliError(
+            f"invalid skill name: {skill_name}",
+            hint="use lowercase letters, numbers, underscore, or hyphen",
+        )
+
+    try:
+        agent = get_agent(agent_name)
+    except KeyError as e:
+        raise CliError(str(e), hint=f"valid agents: {', '.join(get_agents().keys())}")
+
+    if not agent.supports_skills():
+        raise CliError(f"agent does not support skills: {agent_name}")
+
+    skill_path = agent.skill_path(repo_root, skill_name)
+    skill_path.parent.mkdir(parents=True, exist_ok=True)
+    content = (
+        f"# {skill_name}\n\n"
+        "use this skill when this recurring task appears in this repository.\n\n"
+        "## generated from\n\n"
+        f"- invocation: {invocation}\n"
+        f"- agent: {agent_name}\n\n"
+        "## instructions\n\n"
+        f"{prompt.strip()}\n"
+    )
+    skill_path.write_text(content, encoding="utf-8")
+    return skill_path
+
+
+def write_subagent(
+    repo_root: Path,
+    agent_name: str,
+    conjurings: list[str],
+    subagent_name: str,
+    system: str,
+) -> Path:
+    """Write a reusable subagent file for supported agents."""
+    if not _VALID_SUBAGENT_NAME.match(subagent_name):
+        raise CliError(
+            f"invalid subagent name: {subagent_name}",
+            hint="use lowercase letters, numbers, underscore, or hyphen",
+        )
+
+    try:
+        agent = get_agent(agent_name)
+    except KeyError as e:
+        raise CliError(str(e), hint=f"valid agents: {', '.join(get_agents().keys())}")
+
+    if not agent.supports_subagents():
+        raise CliError(f"agent does not support subagents: {agent_name}")
+
+    subagent_path = agent.subagent_path(repo_root, subagent_name)
+    subagent_path.parent.mkdir(parents=True, exist_ok=True)
+    profile = ", ".join(conjurings)
+    content = (
+        f"# {subagent_name}\n\n"
+        "use this subagent when this repository needs this persistent behavior profile.\n\n"
+        "## generated from\n\n"
+        f"- conjurings: {profile}\n"
+        f"- agent: {agent_name}\n\n"
+        "## instructions\n\n"
+        f"{system.strip()}\n"
+    )
+    subagent_path.write_text(content, encoding="utf-8")
+    return subagent_path
+
+
 def parse_kv(pairs: list[str]) -> dict[str, str]:
     out: dict[str, str] = {}
     for p in pairs:
@@ -138,6 +212,14 @@ def cmd_conjure(args: argparse.Namespace) -> int:
             hint="run 'familiar list conjurings' to see available options",
         )
     write_instruction(repo_root, args.agent, system)
+    if getattr(args, "save_subagent", False):
+        subagent_name = getattr(args, "subagent_name", None) or "_".join(
+            args.conjurings
+        )
+        subagent_path = write_subagent(
+            repo_root, args.agent, args.conjurings, subagent_name, system
+        )
+        print(f"wrote subagent: {subagent_path}")
     print(f"wrote instructions for {args.agent}")
     return EXIT_SUCCESS
 
@@ -155,6 +237,14 @@ def cmd_invoke(args: argparse.Namespace) -> int:
 
     if args.dry_run:
         print(prompt)
+        return EXIT_SUCCESS
+
+    if getattr(args, "save_skill", False):
+        skill_name = getattr(args, "skill_name", None) or args.invocation
+        skill_path = write_skill(
+            repo_root, args.agent, args.invocation, skill_name, prompt
+        )
+        print(f"wrote skill: {skill_path}")
         return EXIT_SUCCESS
 
     target_dir = repo_root
@@ -285,6 +375,15 @@ def main() -> None:
         "conjurings", nargs="+", help="conjuring names, e.g. rust infra sec"
     )
     conjure.add_argument("--into", help="target repo path (default: current directory)")
+    conjure.add_argument(
+        "--save-subagent",
+        action="store_true",
+        help="write composed conjurings as a reusable subagent",
+    )
+    conjure.add_argument(
+        "--subagent-name",
+        help="override subagent name (default: joined conjuring names)",
+    )
     conjure.set_defaults(func=cmd_conjure)
 
     invoke = sub.add_parser(
@@ -307,6 +406,15 @@ def main() -> None:
     )
     invoke.add_argument(
         "--worktree", action="store_true", help="run in a separate git worktree"
+    )
+    invoke.add_argument(
+        "--save-skill",
+        action="store_true",
+        help="write rendered invocation as a skill and exit",
+    )
+    invoke.add_argument(
+        "--skill-name",
+        help="override skill name (default: invocation name)",
     )
     invoke.add_argument("--kv", nargs="*", help="named arguments as key=value pairs")
     invoke.add_argument(

@@ -26,6 +26,13 @@ familiar conjure codex rust infra sec
 
 this creates an `AGENTS.md` file (for codex) or `CLAUDE.md` file (for claude) in your repository root with combined instructions from the rust, infra, and sec conjurings.
 
+to also save a reusable subagent from conjurings:
+
+```bash
+familiar conjure claude python sec --save-subagent
+familiar conjure codex rust infra --save-subagent --subagent-name ship_ops
+```
+
 ### invoke
 
 `invoke` runs a task prompt through the agent.
@@ -41,6 +48,13 @@ familiar invoke codex bootstrap-rust myapp bin 1.78 mit
 ```
 
 this renders the `bootstrap-rust` invocation with the provided arguments and sends it to codex.
+
+to save an invocation as a reusable skill instead of running it:
+
+```bash
+familiar invoke claude code-review --save-skill
+familiar invoke codex refactor src/foo.py --save-skill --skill-name cleanup_refactor
+```
 
 ### list
 

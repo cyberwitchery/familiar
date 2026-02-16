@@ -132,6 +132,8 @@ class TestCmdConjure:
             agent="claude",
             conjurings=["python"],
             into=str(tmp_path),
+            save_subagent=False,
+            subagent_name=None,
         )
         result = cmd_conjure(args)
         assert result == 0
@@ -144,8 +146,53 @@ class TestCmdConjure:
             agent="claude",
             conjurings=["nonexistent"],
             into=str(tmp_path),
+            save_subagent=False,
+            subagent_name=None,
         )
         with pytest.raises(CliError, match="unknown conjuring"):
+            cmd_conjure(args)
+
+    def test_writes_subagent_for_claude(self, tmp_path):
+        args = argparse.Namespace(
+            agent="claude",
+            conjurings=["python", "sec"],
+            into=str(tmp_path),
+            save_subagent=True,
+            subagent_name=None,
+        )
+        result = cmd_conjure(args)
+        assert result == 0
+        subagent = tmp_path / ".claude" / "subagents" / "python_sec" / "AGENT.md"
+        assert subagent.exists()
+        content = subagent.read_text()
+        assert "conjurings: python, sec" in content
+        assert "agent: claude" in content
+
+    def test_writes_subagent_for_codex_with_custom_name(self, tmp_path):
+        args = argparse.Namespace(
+            agent="codex",
+            conjurings=["rust", "infra"],
+            into=str(tmp_path),
+            save_subagent=True,
+            subagent_name="ship_ops",
+        )
+        result = cmd_conjure(args)
+        assert result == 0
+        subagent = tmp_path / ".codex" / "subagents" / "ship_ops" / "AGENT.md"
+        assert subagent.exists()
+        content = subagent.read_text()
+        assert "conjurings: rust, infra" in content
+        assert "agent: codex" in content
+
+    def test_invalid_subagent_name_raises(self, tmp_path):
+        args = argparse.Namespace(
+            agent="claude",
+            conjurings=["python"],
+            into=str(tmp_path),
+            save_subagent=True,
+            subagent_name="Not Valid",
+        )
+        with pytest.raises(CliError, match="invalid subagent name"):
             cmd_conjure(args)
 
 
@@ -164,6 +211,8 @@ class TestCmdInvoke:
                 kv=None,
                 inv_args=["some code"],
                 worktree=False,
+                save_skill=False,
+                skill_name=None,
             )
             result = cmd_invoke(args)
             assert result == 0
@@ -183,6 +232,8 @@ class TestCmdInvoke:
             kv=None,
             inv_args=[],
             worktree=False,
+            save_skill=False,
+            skill_name=None,
         )
         with pytest.raises(CliError, match="unknown invocation"):
             cmd_invoke(args)
@@ -204,6 +255,8 @@ class TestCmdInvoke:
                 kv=["mykey=myvalue"],
                 inv_args=[],
                 worktree=False,
+                save_skill=False,
+                skill_name=None,
             )
             cmd_invoke(args)
             prompt = mock_run.call_args[0][2]
@@ -220,6 +273,8 @@ class TestCmdInvoke:
             kv=None,
             inv_args=["some code"],
             worktree=False,
+            save_skill=False,
+            skill_name=None,
         )
         result = cmd_invoke(args)
         assert result == 0
@@ -238,6 +293,8 @@ class TestCmdInvoke:
                 kv=None,
                 inv_args=[],
                 worktree=False,
+                save_skill=False,
+                skill_name=None,
             )
             cmd_invoke(args)
             mock_run.assert_not_called()
@@ -261,6 +318,8 @@ class TestCmdInvoke:
                         kv=None,
                         inv_args=[],
                         worktree=True,
+                        save_skill=False,
+                        skill_name=None,
                     )
                     result = cmd_invoke(args)
                     assert result == 0
@@ -269,6 +328,71 @@ class TestCmdInvoke:
                     assert mock_run.call_args[0][0] == tmp_path / "wt"
                     # Check that instruction file was copied
                     mock_copy.assert_called_once()
+
+    def test_invoke_save_skill_claude(self, tmp_path):
+        with patch("familiar.cli.run_agent") as mock_run:
+            args = argparse.Namespace(
+                agent="claude",
+                invocation="explain",
+                into=str(tmp_path),
+                headless=True,
+                auto=False,
+                dry_run=False,
+                kv=None,
+                inv_args=["some code"],
+                worktree=False,
+                save_skill=True,
+                skill_name=None,
+            )
+            result = cmd_invoke(args)
+            assert result == 0
+            skill = tmp_path / ".claude" / "skills" / "explain" / "SKILL.md"
+            assert skill.exists()
+            content = skill.read_text()
+            assert "invocation: explain" in content
+            assert "agent: claude" in content
+            mock_run.assert_not_called()
+
+    def test_invoke_save_skill_codex_custom_name(self, tmp_path):
+        with patch("familiar.cli.run_agent") as mock_run:
+            args = argparse.Namespace(
+                agent="codex",
+                invocation="refactor",
+                into=str(tmp_path),
+                headless=True,
+                auto=False,
+                dry_run=False,
+                kv=None,
+                inv_args=["src/foo.py"],
+                worktree=False,
+                save_skill=True,
+                skill_name="cleanup_refactor",
+            )
+            result = cmd_invoke(args)
+            assert result == 0
+            skill = tmp_path / ".codex" / "skills" / "cleanup_refactor" / "SKILL.md"
+            assert skill.exists()
+            content = skill.read_text()
+            assert "invocation: refactor" in content
+            assert "agent: codex" in content
+            mock_run.assert_not_called()
+
+    def test_invoke_save_skill_invalid_name(self, tmp_path):
+        args = argparse.Namespace(
+            agent="claude",
+            invocation="explain",
+            into=str(tmp_path),
+            headless=True,
+            auto=False,
+            dry_run=False,
+            kv=None,
+            inv_args=["some code"],
+            worktree=False,
+            save_skill=True,
+            skill_name="Not Valid",
+        )
+        with pytest.raises(CliError, match="invalid skill name"):
+            cmd_invoke(args)
 
 
 class TestCmdList:
