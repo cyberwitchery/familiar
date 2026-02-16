@@ -18,7 +18,7 @@ nav:
   - plugins: plugins.md
   - linting: linting.md
   - cli reference: cli.md
-  - changelog: changelog.md
+  - changelog: https://github.com/cyberwitchery/familiar/blob/main/changelog.md
 
 markdown_extensions:
   - admonition

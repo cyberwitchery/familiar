@@ -26,8 +26,6 @@ familiar conjure codex rust infra sec
 
 this creates an `AGENTS.md` file (for codex) or `CLAUDE.md` file (for claude) in your repository root with combined instructions from the rust, infra, and sec conjurings.
 
-the selected conjurings are saved to `.familiar/<agent>.json` so you don't need to specify them again.
-
 ### invoke
 
 `invoke` runs a task prompt through the agent.
