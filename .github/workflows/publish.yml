@@ -11,6 +11,7 @@ jobs:
     environment: pypi
     permissions:
       id-token: write
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -29,5 +30,9 @@ jobs:
         with:
           name: sbom-${{ github.ref_name }}
           path: /tmp/sbom-${{ github.ref_name }}.cdx.json
+      - name: attach sbom to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: /tmp/sbom-${{ github.ref_name }}.cdx.json
       - name: publish to pypi
         uses: pypa/gh-action-pypi-publish@release/v1
