@@ -121,6 +121,34 @@ class TestComposeSystem:
         # verify order: core, then conjurings in order
         assert system == "CORE\n\nFIRST\n\nSECOND"
 
+    def test_compose_core_only(self, tmp_path):
+        templates = tmp_path / ".familiar" / "conjurings"
+        templates.mkdir(parents=True)
+        (templates / "core.md").write_text("CORE")
+
+        system = compose_system(tmp_path, [])
+        assert system == "CORE"
+
+    def test_compose_multiple_conjurings(self, tmp_path):
+        templates = tmp_path / ".familiar" / "conjurings"
+        templates.mkdir(parents=True)
+        (templates / "core.md").write_text("CORE")
+        (templates / "a.md").write_text("A")
+        (templates / "b.md").write_text("B")
+        (templates / "c.md").write_text("C")
+
+        system = compose_system(tmp_path, ["a", "b", "c"])
+        assert system == "CORE\n\nA\n\nB\n\nC"
+
+    def test_compose_strips_whitespace(self, tmp_path):
+        templates = tmp_path / ".familiar" / "conjurings"
+        templates.mkdir(parents=True)
+        (templates / "core.md").write_text("  CORE  \n")
+        (templates / "pad.md").write_text("\n  PAD  \n\n")
+
+        system = compose_system(tmp_path, ["pad"])
+        assert system == "CORE\n\nPAD"
+
     def test_compose_missing_profile_raises(self, tmp_path):
         with pytest.raises(NotFoundError, match="unknown conjuring"):
             compose_system(tmp_path, ["nonexistent"])
@@ -136,6 +164,36 @@ class TestRenderInvocation:
 
         result = render_invocation(tmp_path, "greet", ["world"], {"style": "friendly"})
         assert result == "hello world, friendly"
+
+    def test_render_with_snippet_and_args(self, tmp_path):
+        snippets = tmp_path / ".familiar" / "snippets" / "test"
+        snippets.mkdir(parents=True)
+        (snippets / "header.txt").write_text("== $1 ==")
+
+        invocations = tmp_path / ".familiar" / "invocations"
+        invocations.mkdir(parents=True)
+        (invocations / "demo.md").write_text(
+            "{{> snippet:test/header.txt}}\nbody: {{mode}}"
+        )
+
+        result = render_invocation(tmp_path, "demo", ["title"], {"mode": "fast"})
+        assert result == "== title ==\nbody: fast"
+
+    def test_render_no_args(self, tmp_path):
+        invocations = tmp_path / ".familiar" / "invocations"
+        invocations.mkdir(parents=True)
+        (invocations / "plain.md").write_text("no placeholders here")
+
+        result = render_invocation(tmp_path, "plain", [], {})
+        assert result == "no placeholders here"
+
+    def test_render_arguments_placeholder(self, tmp_path):
+        invocations = tmp_path / ".familiar" / "invocations"
+        invocations.mkdir(parents=True)
+        (invocations / "all.md").write_text("run $ARGUMENTS")
+
+        result = render_invocation(tmp_path, "all", ["a", "b", "c"], {})
+        assert result == "run a b c"
 
     def test_render_missing_invocation_raises(self, tmp_path):
         with pytest.raises(NotFoundError, match="unknown invocation"):
@@ -259,6 +317,15 @@ class TestResolveIncludes:
         with pytest.raises(NotFoundError, match="unknown snippet"):
             resolve_includes(tmp_path, text)
 
+    def test_nonexistent_among_valid_raises(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "good.txt").write_text("ok")
+
+        text = "{{> snippet:test/good.txt}} {{> snippet:test/missing.txt}}"
+        with pytest.raises(NotFoundError, match="unknown snippet"):
+            resolve_includes(tmp_path, text)
+
     def test_include_before_substitute(self, tmp_path):
         """Include resolution happens before placeholder substitution."""
         snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
@@ -325,3 +392,25 @@ class TestListSnippets:
         _, first_line, is_local = custom_items[0]
         assert is_local is True
         assert first_line == "first line here"
+
+    def test_local_override_preserves_other_builtins(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "python"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "pyproject.toml").write_text("custom")
+
+        items = list_snippets(tmp_path)
+        lookup = {p: (f, loc) for p, f, loc in items}
+        assert lookup["python/pyproject.toml"][1] is True
+        assert "rust/Cargo.toml" in lookup
+        assert lookup["rust/Cargo.toml"][1] is False
+
+    def test_local_underscore_files_excluded(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "_hidden.txt").write_text("should not appear")
+        (snippet_dir / "visible.txt").write_text("should appear")
+
+        items = list_snippets(tmp_path)
+        paths = [p for p, _, _ in items]
+        assert "test/visible.txt" in paths
+        assert "test/_hidden.txt" not in paths
