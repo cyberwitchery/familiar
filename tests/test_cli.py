@@ -13,12 +13,26 @@ from familiar.cli import (
     write_instruction,
     parse_kv,
     run_agent,
+    main,
     cmd_conjure,
     cmd_invoke,
     cmd_list,
     cmd_lint,
     CliError,
 )
+
+
+class TestVersion:
+    """tests for --version flag."""
+
+    def test_version_prints_and_exits(self, capsys):
+        with pytest.raises(SystemExit, match="0"):
+            with patch("sys.argv", ["familiar", "--version"]):
+                main()
+        captured = capsys.readouterr()
+        assert "familiar" in captured.out
+        # version string should look like a semver
+        assert any(c.isdigit() for c in captured.out)
 
 
 class TestCreateWorktree:

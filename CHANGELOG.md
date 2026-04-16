@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+- add `--version` flag to CLI
+
 ## [0.4.0] - 2026-02-16
 
 - add skills and subagents
