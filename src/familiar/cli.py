@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import traceback
+from importlib.metadata import version
 from pathlib import Path
 
 from .agents import get_agents, get_agent
@@ -356,6 +357,11 @@ def main() -> None:
         "  familiar list                        # show all options\n"
         "  familiar lint                        # validate prompts\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {version('familiar-cli')}",
     )
     parser.add_argument(
         "--debug", action="store_true", help="show full traceback on error"
