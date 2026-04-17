@@ -42,6 +42,11 @@ class CliError(Exception):
         self.exit_code = exit_code
 
 
+def _agent_hint() -> str:
+    """Return a hint string listing valid agent names."""
+    return f"valid agents: {', '.join(get_agents().keys())}"
+
+
 def find_repo_root(start: Path) -> Path:
     """Find the repository root by looking for .git directory.
 
@@ -99,7 +104,7 @@ def write_instruction(repo_root: Path, agent_name: str, system: str) -> None:
     try:
         agent = get_agent(agent_name)
     except KeyError as e:
-        raise CliError(str(e), hint=f"valid agents: {', '.join(get_agents().keys())}")
+        raise CliError(str(e), hint=_agent_hint())
     (repo_root / agent.output_file).write_text(system.strip() + "\n", encoding="utf-8")
 
 
@@ -116,7 +121,7 @@ def write_skill(
     try:
         agent = get_agent(agent_name)
     except KeyError as e:
-        raise CliError(str(e), hint=f"valid agents: {', '.join(get_agents().keys())}")
+        raise CliError(str(e), hint=_agent_hint())
 
     if not agent.supports_skills():
         raise CliError(f"agent does not support skills: {agent_name}")
@@ -153,7 +158,7 @@ def write_subagent(
     try:
         agent = get_agent(agent_name)
     except KeyError as e:
-        raise CliError(str(e), hint=f"valid agents: {', '.join(get_agents().keys())}")
+        raise CliError(str(e), hint=_agent_hint())
 
     if not agent.supports_subagents():
         raise CliError(f"agent does not support subagents: {agent_name}")
@@ -193,7 +198,7 @@ def run_agent(
     try:
         agent = get_agent(agent_name)
     except KeyError as e:
-        raise CliError(str(e), hint=f"valid agents: {', '.join(get_agents().keys())}")
+        raise CliError(str(e), hint=_agent_hint())
     try:
         return agent.run(repo_root, prompt, headless, auto=auto)
     except FileNotFoundError:
