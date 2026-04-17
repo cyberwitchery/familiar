@@ -5,8 +5,9 @@ from __future__ import annotations
 import subprocess
 import warnings
 from abc import ABC, abstractmethod
-from importlib.metadata import entry_points
 from pathlib import Path
+
+from ._plugins import load_plugins
 
 
 class Agent(ABC):
@@ -96,26 +97,22 @@ def load_agents() -> dict[str, Agent]:
         Dictionary mapping agent names to Agent instances.
         Plugins that fail to load are skipped with a warning.
     """
+    plugins = load_plugins(
+        "familiar.agents",
+        lambda cls: isinstance(cls, type) and issubclass(cls, Agent),
+        label="agent plugin",
+        invalid_msg="not a valid Agent subclass",
+    )
     agents: dict[str, Agent] = {}
-    eps = entry_points(group="familiar.agents")
-
-    for ep in eps:
+    for cls in plugins:
         try:
-            cls = ep.load()
-            if not (isinstance(cls, type) and issubclass(cls, Agent)):
-                warnings.warn(
-                    f"agent plugin '{ep.name}': not a valid Agent subclass",
-                    stacklevel=2,
-                )
-                continue
             instance = cls()
             agents[instance.name] = instance
         except Exception as e:
             warnings.warn(
-                f"failed to load agent plugin '{ep.name}': {e}",
+                f"failed to load agent plugin '{cls.__name__}': {e}",
                 stacklevel=2,
             )
-
     return agents
 
 

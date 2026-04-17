@@ -68,7 +68,7 @@ class TestPluginLoadErrors:
         mock_ep.name = "invalid"
         mock_ep.load.return_value = str  # not an Agent subclass
 
-        with patch("familiar.agents.entry_points", return_value=[mock_ep]):
+        with patch("familiar._plugins.entry_points", return_value=[mock_ep]):
             with pytest.warns(UserWarning, match="not a valid Agent subclass"):
                 agents = load_agents()
             assert "invalid" not in agents
@@ -79,7 +79,7 @@ class TestPluginLoadErrors:
         mock_ep.name = "broken"
         mock_ep.load.side_effect = ImportError("module not found")
 
-        with patch("familiar.agents.entry_points", return_value=[mock_ep]):
+        with patch("familiar._plugins.entry_points", return_value=[mock_ep]):
             with pytest.warns(UserWarning, match="failed to load"):
                 agents = load_agents()
             assert "broken" not in agents
@@ -101,7 +101,7 @@ class TestPluginLoadErrors:
         mock_ep.name = "bad"
         mock_ep.load.return_value = BadAgent
 
-        with patch("familiar.agents.entry_points", return_value=[mock_ep]):
+        with patch("familiar._plugins.entry_points", return_value=[mock_ep]):
             with pytest.warns(UserWarning, match="failed to load"):
                 agents = load_agents()
             assert "bad" not in agents

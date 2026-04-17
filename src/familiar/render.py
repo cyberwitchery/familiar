@@ -118,35 +118,77 @@ def _walk_traversable(root: Traversable, prefix: str = "") -> list[tuple[str, st
     return items
 
 
+def _list_resources(
+    repo_root: Path,
+    pkg: str,
+    local_subdir: str,
+    *,
+    recursive: bool = False,
+    suffix: str = "",
+) -> list[tuple[str, str, bool]]:
+    """List resources from package data and local overrides.
+
+    Items from local ``.familiar/{local_subdir}/`` override package builtins.
+
+    Args:
+        repo_root: Repository root path.
+        pkg: Package name to scan for builtins.
+        local_subdir: Subdirectory name under ``.familiar/`` for local overrides.
+        recursive: If True, scan recursively (for nested resources like snippets).
+        suffix: File suffix filter (e.g. ``".md"``). Empty string matches all files.
+
+    Returns:
+        Sorted list of ``(key, first_line, is_local)`` tuples.
+    """
+    items: dict[str, tuple[str, bool]] = {}
+
+    # built-in resources from package data
+    try:
+        pkg_root = resources.files(pkg)
+        if recursive:
+            for rel, first_line in _walk_traversable(pkg_root):
+                items[rel] = (first_line, False)
+        else:
+            for item in pkg_root.iterdir():
+                if suffix and not item.name.endswith(suffix):
+                    continue
+                if item.name.startswith("_"):
+                    continue
+                key = item.name[: -len(suffix)] if suffix else item.name
+                content = item.read_text(encoding="utf-8")
+                first_line = content.split("\n", 1)[0].strip()
+                items[key] = (first_line, False)
+    except (FileNotFoundError, TypeError, ModuleNotFoundError):
+        pass
+
+    # local overrides
+    local_dir = repo_root / ".familiar" / local_subdir
+    if local_dir.is_dir():
+        files = (
+            sorted(local_dir.rglob("*")) if recursive else local_dir.glob(f"*{suffix}")
+        )
+        for f in files:
+            if not f.is_file() or f.name.startswith("_"):
+                continue
+            key = str(f.relative_to(local_dir)) if recursive else f.stem
+            content = f.read_text(encoding="utf-8")
+            first_line = content.split("\n", 1)[0].strip()
+            items[key] = (first_line, True)
+
+    return [
+        (key, first_line, is_local)
+        for key, (first_line, is_local) in sorted(items.items())
+    ]
+
+
 def list_snippets(repo_root: Path) -> list[tuple[str, str, bool]]:
     """List available snippets.
 
     Returns list of (path, first_line, is_local) tuples, sorted by path.
     """
-    items: dict[str, tuple[str, bool]] = {}
-
-    # built-ins
-    try:
-        pkg_root = resources.files("familiar.data.snippets")
-        for rel, first_line in _walk_traversable(pkg_root):
-            items[rel] = (first_line, False)
-    except (FileNotFoundError, TypeError, ModuleNotFoundError):
-        pass
-
-    # local overrides
-    local_dir = repo_root / ".familiar" / "snippets"
-    if local_dir.is_dir():
-        for f in sorted(local_dir.rglob("*")):
-            if f.is_file() and not f.name.startswith("_"):
-                rel = str(f.relative_to(local_dir))
-                content = f.read_text(encoding="utf-8")
-                first_line = content.split("\n", 1)[0].strip()
-                items[rel] = (first_line, True)
-
-    return [
-        (path, first_line, is_local)
-        for path, (first_line, is_local) in sorted(items.items())
-    ]
+    return _list_resources(
+        repo_root, "familiar.data.snippets", "snippets", recursive=True
+    )
 
 
 def list_items(repo_root: Path, kind: str) -> list[tuple[str, str, bool]]:
@@ -154,35 +196,7 @@ def list_items(repo_root: Path, kind: str) -> list[tuple[str, str, bool]]:
 
     Returns list of (name, first_line, is_local) tuples, sorted by name.
     """
-    items: dict[str, tuple[str, bool]] = {}
-
-    # built-ins
-    pkg = f"familiar.data.{kind}"
-    try:
-        pkg_files = resources.files(pkg)
-        for item in pkg_files.iterdir():
-            if item.name.endswith(".md") and not item.name.startswith("_"):
-                name = item.name[:-3]
-                content = item.read_text(encoding="utf-8")
-                first_line = content.split("\n", 1)[0].strip()
-                items[name] = (first_line, False)
-    except (FileNotFoundError, TypeError):
-        pass
-
-    # local overrides
-    local_dir = repo_root / ".familiar" / kind
-    if local_dir.is_dir():
-        for f in local_dir.glob("*.md"):
-            if not f.name.startswith("_"):
-                name = f.stem
-                content = f.read_text(encoding="utf-8")
-                first_line = content.split("\n", 1)[0].strip()
-                items[name] = (first_line, True)
-
-    return [
-        (name, first_line, is_local)
-        for name, (first_line, is_local) in sorted(items.items())
-    ]
+    return _list_resources(repo_root, f"familiar.data.{kind}", kind, suffix=".md")
 
 
 def compose_system(repo_root: Path, conjurings: list[str]) -> str:

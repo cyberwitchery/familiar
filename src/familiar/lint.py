@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import re
-import warnings
 from dataclasses import dataclass
-from importlib.metadata import entry_points
 from pathlib import Path
 from typing import Callable, Literal
+
+from ._plugins import load_plugins
 
 from .render import _SNIPPET_INCLUDE, NotFoundError, list_items, load_snippet, load_text
 
@@ -202,27 +202,12 @@ def load_linters(kind: Literal["conjurings", "invocations"]) -> list[LinterFunc]
     Returns:
         List of linter functions from plugins.
     """
-    linters: list[LinterFunc] = []
-    group = f"familiar.linters.{kind}"
-    eps = entry_points(group=group)
-
-    for ep in eps:
-        try:
-            func = ep.load()
-            if not callable(func):
-                warnings.warn(
-                    f"linter plugin '{ep.name}': not callable",
-                    stacklevel=2,
-                )
-                continue
-            linters.append(func)
-        except Exception as e:
-            warnings.warn(
-                f"failed to load linter plugin '{ep.name}': {e}",
-                stacklevel=2,
-            )
-
-    return linters
+    return load_plugins(
+        f"familiar.linters.{kind}",
+        callable,
+        label="linter plugin",
+        invalid_msg="not callable",
+    )
 
 
 def lint_snippet_references(
