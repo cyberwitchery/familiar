@@ -225,7 +225,7 @@ class TestLinterPlugins:
         mock_ep.name = "invalid"
         mock_ep.load.return_value = "not a function"
 
-        with patch("familiar.lint.entry_points", return_value=[mock_ep]):
+        with patch("familiar._plugins.entry_points", return_value=[mock_ep]):
             with pytest.warns(UserWarning, match="not callable"):
                 linters = load_linters("conjurings")
             assert len(linters) == 0
@@ -236,7 +236,7 @@ class TestLinterPlugins:
         mock_ep.name = "broken"
         mock_ep.load.side_effect = ImportError("module not found")
 
-        with patch("familiar.lint.entry_points", return_value=[mock_ep]):
+        with patch("familiar._plugins.entry_points", return_value=[mock_ep]):
             with pytest.warns(UserWarning, match="failed to load"):
                 linters = load_linters("conjurings")
             assert len(linters) == 0
@@ -258,7 +258,7 @@ class TestLinterPlugins:
         templates.mkdir(parents=True)
         (templates / "mytemplate.md").write_text("# test")
 
-        with patch("familiar.lint.entry_points") as mock_entry_points:
+        with patch("familiar._plugins.entry_points") as mock_entry_points:
             # Return our mock for templates, empty for invocations
             def ep_side_effect(group):
                 if group == "familiar.linters.conjurings":
@@ -287,7 +287,7 @@ class TestLinterPlugins:
         templates.mkdir(parents=True)
         (templates / "test.md").write_text("# test")
 
-        with patch("familiar.lint.entry_points") as mock_entry_points:
+        with patch("familiar._plugins.entry_points") as mock_entry_points:
 
             def ep_side_effect(group):
                 if group == "familiar.linters.conjurings":
