@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import traceback
+import warnings
 from importlib.metadata import version
 from pathlib import Path
 
@@ -264,8 +265,11 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             instr_file = repo_root / agent.output_file
             if instr_file.exists():
                 shutil.copy2(instr_file, target_dir / agent.output_file)
-        except (OSError, KeyError):
-            pass
+        except (OSError, KeyError) as exc:
+            warnings.warn(
+                f"failed to copy instruction file into worktree: {exc}",
+                stacklevel=2,
+            )
 
     try:
         rc = run_agent(

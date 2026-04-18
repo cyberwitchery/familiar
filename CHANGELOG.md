@@ -2,6 +2,7 @@
 
 ## [unreleased]
 
+- warn when instruction file copy fails during worktree setup instead of silently swallowing the error
 - add `--version` flag to CLI
 
 ## [0.4.0] - 2026-02-16
