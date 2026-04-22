@@ -162,20 +162,26 @@ class TestCodexAgent:
     def test_run_interactive(self, tmp_path):
         agent = CodexAgent()
 
-        with patch("familiar.agents.subprocess.call", return_value=0) as mock_call:
+        with patch(
+            "familiar.agents.subprocess.run",
+            return_value=MagicMock(returncode=0),
+        ) as mock_run:
             result = agent.run(tmp_path, "test prompt", headless=False)
             assert result == 0
-            mock_call.assert_called_once_with(
+            mock_run.assert_called_once_with(
                 ["codex", "-C", str(tmp_path), "test prompt"]
             )
 
     def test_run_auto(self, tmp_path):
         agent = CodexAgent()
 
-        with patch("familiar.agents.subprocess.call", return_value=0) as mock_call:
+        with patch(
+            "familiar.agents.subprocess.run",
+            return_value=MagicMock(returncode=0),
+        ) as mock_run:
             result = agent.run(tmp_path, "test prompt", headless=False, auto=True)
             assert result == 0
-            mock_call.assert_called_once_with(
+            mock_run.assert_called_once_with(
                 ["codex", "--full-auto", "-C", str(tmp_path), "test prompt"]
             )
 
@@ -212,35 +218,52 @@ class TestClaudeAgent:
     def test_run_headless(self, tmp_path):
         agent = ClaudeAgent()
 
-        with patch("familiar.agents.subprocess.call", return_value=0) as mock_call:
+        with patch(
+            "familiar.agents.subprocess.run",
+            return_value=MagicMock(returncode=0),
+        ) as mock_run:
             result = agent.run(tmp_path, "test prompt", headless=True)
             assert result == 0
-            mock_call.assert_called_once_with(
-                ["claude", "-p", "test prompt"], cwd=tmp_path
+            mock_run.assert_called_once_with(
+                ["claude", "-p", "test prompt"],
+                cwd=tmp_path,
+                timeout=1800,
             )
 
     def test_run_interactive(self, tmp_path):
         agent = ClaudeAgent()
 
-        with patch("familiar.agents.subprocess.call", return_value=0) as mock_call:
+        with patch(
+            "familiar.agents.subprocess.run",
+            return_value=MagicMock(returncode=0),
+        ) as mock_run:
             result = agent.run(tmp_path, "test prompt", headless=False)
             assert result == 0
-            mock_call.assert_called_once_with(["claude", "test prompt"], cwd=tmp_path)
+            mock_run.assert_called_once_with(
+                ["claude", "test prompt"], cwd=tmp_path, timeout=None
+            )
 
     def test_run_auto(self, tmp_path):
         agent = ClaudeAgent()
 
-        with patch("familiar.agents.subprocess.call", return_value=0) as mock_call:
+        with patch(
+            "familiar.agents.subprocess.run",
+            return_value=MagicMock(returncode=0),
+        ) as mock_run:
             result = agent.run(tmp_path, "test prompt", headless=False, auto=True)
             assert result == 0
-            mock_call.assert_called_once_with(
+            mock_run.assert_called_once_with(
                 ["claude", "--dangerously-skip-permissions", "test prompt"],
                 cwd=tmp_path,
+                timeout=None,
             )
 
     def test_run_returns_exit_code(self, tmp_path):
         agent = ClaudeAgent()
 
-        with patch("familiar.agents.subprocess.call", return_value=42):
+        with patch(
+            "familiar.agents.subprocess.run",
+            return_value=MagicMock(returncode=42),
+        ):
             result = agent.run(tmp_path, "prompt", headless=True)
             assert result == 42

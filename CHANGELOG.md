@@ -2,6 +2,7 @@
 
 ## [unreleased]
 
+- add 30-minute execution timeout for headless agent runs to prevent hung processes
 - warn when instruction file copy fails during worktree setup instead of silently swallowing the error
 - add `--version` flag to CLI
 

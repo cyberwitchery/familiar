@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 import subprocess
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 import argparse
 
 from familiar.cli import (
@@ -128,12 +128,13 @@ class TestRunAgent:
     """tests for agent execution."""
 
     def test_missing_binary_raises(self, tmp_path):
-        with patch("familiar.agents.subprocess.call", side_effect=FileNotFoundError):
+        with patch("familiar.agents.subprocess.run", side_effect=FileNotFoundError):
             with pytest.raises(CliError, match="claude not found in PATH"):
                 run_agent(tmp_path, "claude", "prompt", headless=True)
 
     def test_returns_exit_code(self, tmp_path):
-        with patch("familiar.agents.subprocess.call", return_value=42):
+        mock_result = MagicMock(returncode=42)
+        with patch("familiar.agents.subprocess.run", return_value=mock_result):
             result = run_agent(tmp_path, "claude", "prompt", headless=True)
             assert result == 42
 

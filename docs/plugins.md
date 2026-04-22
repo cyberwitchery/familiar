@@ -57,7 +57,7 @@ class MyAgent(Agent):
             cmd = ["my-cli", "-p", prompt]
         else:
             cmd = ["my-cli", prompt]
-        return subprocess.call(cmd, cwd=repo_root)
+        return subprocess.run(cmd, cwd=repo_root).returncode
 ```
 
 #### 2. register the entry point

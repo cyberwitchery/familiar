@@ -9,6 +9,8 @@ from pathlib import Path
 
 from ._plugins import load_plugins
 
+_HEADLESS_TIMEOUT: int = 1800  # 30 minutes
+
 
 class Agent(ABC):
     """Base class for AI coding agents."""
@@ -68,7 +70,7 @@ class CodexAgent(Agent):
             if auto:
                 cmd.append("--full-auto")
             cmd.extend(["-C", str(repo_root), prompt])
-            return subprocess.call(cmd)
+            return subprocess.run(cmd).returncode
 
 
 class ClaudeAgent(Agent):
@@ -87,7 +89,8 @@ class ClaudeAgent(Agent):
             cmd.extend(["-p", prompt])
         else:
             cmd.append(prompt)
-        return subprocess.call(cmd, cwd=repo_root)
+        timeout = _HEADLESS_TIMEOUT if headless else None
+        return subprocess.run(cmd, cwd=repo_root, timeout=timeout).returncode
 
 
 def load_agents() -> dict[str, Agent]:
