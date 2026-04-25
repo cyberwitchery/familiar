@@ -343,6 +343,27 @@ class TestCmdInvoke:
                     # Check that instruction file was copied
                     mock_copy.assert_called_once()
 
+    def test_invoke_worktree_cleaned_up_on_error(self, tmp_path):
+        with patch("familiar.cli.create_worktree", return_value=tmp_path / "wt"):
+            with patch("familiar.cli.run_agent", side_effect=RuntimeError("boom")):
+                with patch("familiar.cli._remove_worktree") as mock_remove:
+                    args = argparse.Namespace(
+                        agent="claude",
+                        invocation="explain",
+                        into=str(tmp_path),
+                        headless=True,
+                        auto=False,
+                        dry_run=False,
+                        kv=None,
+                        inv_args=[],
+                        worktree=True,
+                        save_skill=False,
+                        skill_name=None,
+                    )
+                    with pytest.raises(RuntimeError, match="boom"):
+                        cmd_invoke(args)
+                    mock_remove.assert_called_once()
+
     def test_invoke_save_skill_claude(self, tmp_path):
         with patch("familiar.cli.run_agent") as mock_run:
             args = argparse.Namespace(

@@ -28,8 +28,7 @@ from .render import (
 EXIT_SUCCESS = 0
 EXIT_ERROR = 1  # general error (agent failed, etc.)
 EXIT_USAGE = 2  # usage error (bad args, missing files, etc.)
-_VALID_SKILL_NAME = re.compile(r"^[a-z0-9_-]+$")
-_VALID_SUBAGENT_NAME = re.compile(r"^[a-z0-9_-]+$")
+_VALID_NAME = re.compile(r"^[a-z0-9_-]+$")
 
 
 class CliError(Exception):
@@ -59,6 +58,25 @@ def find_repo_root(start: Path) -> Path:
         if (p / ".git").exists():
             return p
     return cur
+
+
+def _remove_worktree(repo_root: Path, worktree_path: Path) -> None:
+    """Best-effort removal of a git worktree."""
+    try:
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "worktree",
+                "remove",
+                "--force",
+                str(worktree_path),
+            ],
+            capture_output=True,
+        )
+    except FileNotFoundError:
+        pass
 
 
 def create_worktree(repo_root: Path) -> Path:
@@ -113,7 +131,7 @@ def write_skill(
     repo_root: Path, agent_name: str, invocation: str, skill_name: str, prompt: str
 ) -> Path:
     """Write a reusable skill file for supported agents."""
-    if not _VALID_SKILL_NAME.match(skill_name):
+    if not _VALID_NAME.match(skill_name):
         raise CliError(
             f"invalid skill name: {skill_name}",
             hint="use lowercase letters, numbers, underscore, or hyphen",
@@ -150,7 +168,7 @@ def write_subagent(
     system: str,
 ) -> Path:
     """Write a reusable subagent file for supported agents."""
-    if not _VALID_SUBAGENT_NAME.match(subagent_name):
+    if not _VALID_NAME.match(subagent_name):
         raise CliError(
             f"invalid subagent name: {subagent_name}",
             hint="use lowercase letters, numbers, underscore, or hyphen",
@@ -281,7 +299,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         return rc
     except Exception:
         if args.worktree:
-            print(f"\nworktree remains at: {target_dir}")
+            _remove_worktree(repo_root, target_dir)
         raise
 
 

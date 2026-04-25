@@ -2,6 +2,7 @@
 
 ## [unreleased]
 
+- fix worktree leak: clean up git worktree on agent failure instead of leaving stale worktrees
 - warn when instruction file copy fails during worktree setup instead of silently swallowing the error
 - add `--version` flag to CLI
 
