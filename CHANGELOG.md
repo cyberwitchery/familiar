@@ -1,6 +1,6 @@
 # changelog
 
-## [unreleased]
+## [0.5.0] - 2026-04-26
 
 - fix worktree leak: clean up git worktree on agent failure instead of leaving stale worktrees
 - warn when instruction file copy fails during worktree setup instead of silently swallowing the error
