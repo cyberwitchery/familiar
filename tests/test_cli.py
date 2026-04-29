@@ -8,9 +8,12 @@ from unittest.mock import patch
 import argparse
 
 from familiar.cli import (
+    _remove_worktree,
     find_repo_root,
     create_worktree,
     write_instruction,
+    write_skill,
+    write_subagent,
     parse_kv,
     run_agent,
     main,
@@ -98,6 +101,48 @@ class TestWriteInstruction:
     def test_strips_whitespace(self, tmp_path):
         write_instruction(tmp_path, "claude", "  content  \n\n")
         assert (tmp_path / "CLAUDE.md").read_text() == "content\n"
+
+
+class TestRemoveWorktree:
+    """tests for git worktree removal."""
+
+    def test_warns_on_nonzero_return_code(self, tmp_path):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = argparse.Namespace(
+                returncode=1, stderr=b"worktree not found"
+            )
+            with pytest.warns(UserWarning, match="failed to remove worktree"):
+                _remove_worktree(tmp_path, tmp_path / "wt")
+
+    def test_no_warning_on_success(self, tmp_path, recwarn):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = argparse.Namespace(returncode=0, stderr=b"")
+            _remove_worktree(tmp_path, tmp_path / "wt")
+            assert len(recwarn) == 0
+
+    def test_silent_on_missing_git(self, tmp_path, recwarn):
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            _remove_worktree(tmp_path, tmp_path / "wt")
+            assert len(recwarn) == 0
+
+
+class TestWriteFailures:
+    """tests for write error handling."""
+
+    def test_write_instruction_permission_denied(self, tmp_path):
+        with patch("pathlib.Path.write_text", side_effect=PermissionError("denied")):
+            with pytest.raises(CliError, match="cannot write"):
+                write_instruction(tmp_path, "claude", "content")
+
+    def test_write_skill_permission_denied(self, tmp_path):
+        with patch("pathlib.Path.write_text", side_effect=PermissionError("denied")):
+            with pytest.raises(CliError, match="cannot write skill"):
+                write_skill(tmp_path, "claude", "explain", "my-skill", "prompt")
+
+    def test_write_subagent_permission_denied(self, tmp_path):
+        with patch("pathlib.Path.write_text", side_effect=PermissionError("denied")):
+            with pytest.raises(CliError, match="cannot write subagent"):
+                write_subagent(tmp_path, "claude", ["python"], "my-subagent", "system")
 
 
 class TestParseKv:

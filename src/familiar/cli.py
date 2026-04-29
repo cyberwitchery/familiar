@@ -63,7 +63,7 @@ def find_repo_root(start: Path) -> Path:
 def _remove_worktree(repo_root: Path, worktree_path: Path) -> None:
     """Best-effort removal of a git worktree."""
     try:
-        subprocess.run(
+        result = subprocess.run(
             [
                 "git",
                 "-C",
@@ -75,6 +75,12 @@ def _remove_worktree(repo_root: Path, worktree_path: Path) -> None:
             ],
             capture_output=True,
         )
+        if result.returncode != 0:
+            stderr = result.stderr.decode(errors="replace").strip()
+            warnings.warn(
+                f"failed to remove worktree {worktree_path}: {stderr}",
+                stacklevel=2,
+            )
     except FileNotFoundError:
         pass
 
@@ -124,7 +130,14 @@ def write_instruction(repo_root: Path, agent_name: str, system: str) -> None:
         agent = get_agent(agent_name)
     except KeyError as e:
         raise CliError(str(e), hint=_agent_hint())
-    (repo_root / agent.output_file).write_text(system.strip() + "\n", encoding="utf-8")
+    dest = repo_root / agent.output_file
+    try:
+        dest.write_text(system.strip() + "\n", encoding="utf-8")
+    except OSError as e:
+        raise CliError(
+            f"cannot write {dest}: {e}",
+            hint="check file permissions and disk space",
+        )
 
 
 def write_skill(
@@ -146,7 +159,6 @@ def write_skill(
         raise CliError(f"agent does not support skills: {agent_name}")
 
     skill_path = agent.skill_path(repo_root, skill_name)
-    skill_path.parent.mkdir(parents=True, exist_ok=True)
     content = (
         f"# {skill_name}\n\n"
         "use this skill when this recurring task appears in this repository.\n\n"
@@ -156,7 +168,14 @@ def write_skill(
         "## instructions\n\n"
         f"{prompt.strip()}\n"
     )
-    skill_path.write_text(content, encoding="utf-8")
+    try:
+        skill_path.parent.mkdir(parents=True, exist_ok=True)
+        skill_path.write_text(content, encoding="utf-8")
+    except OSError as e:
+        raise CliError(
+            f"cannot write skill {skill_path}: {e}",
+            hint="check file permissions and disk space",
+        )
     return skill_path
 
 
@@ -183,7 +202,6 @@ def write_subagent(
         raise CliError(f"agent does not support subagents: {agent_name}")
 
     subagent_path = agent.subagent_path(repo_root, subagent_name)
-    subagent_path.parent.mkdir(parents=True, exist_ok=True)
     profile = ", ".join(conjurings)
     content = (
         f"# {subagent_name}\n\n"
@@ -194,7 +212,14 @@ def write_subagent(
         "## instructions\n\n"
         f"{system.strip()}\n"
     )
-    subagent_path.write_text(content, encoding="utf-8")
+    try:
+        subagent_path.parent.mkdir(parents=True, exist_ok=True)
+        subagent_path.write_text(content, encoding="utf-8")
+    except OSError as e:
+        raise CliError(
+            f"cannot write subagent {subagent_path}: {e}",
+            hint="check file permissions and disk space",
+        )
     return subagent_path
 
 
