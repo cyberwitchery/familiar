@@ -27,7 +27,16 @@ def load_text(repo_root: Path, kind: str, name: str) -> str:
         raise NotFoundError(f"invalid {kind.rstrip('s')} name: {name}")
     override = repo_root / ".familiar" / kind / f"{name}.md"
     if override.exists():
-        return override.read_text(encoding="utf-8")
+        try:
+            return override.read_text(encoding="utf-8")
+        except PermissionError:
+            raise NotFoundError(
+                f"cannot read {kind.rstrip('s')} '{name}': permission denied on {override}"
+            )
+        except UnicodeDecodeError:
+            raise NotFoundError(
+                f"cannot read {kind.rstrip('s')} '{name}': {override} is not valid UTF-8"
+            )
     pkg = f"familiar.data.{kind}"
     try:
         return (resources.files(pkg) / f"{name}.md").read_text(encoding="utf-8")
@@ -47,7 +56,16 @@ def load_snippet(repo_root: Path, path: str) -> str:
 
     override = repo_root / ".familiar" / "snippets" / path
     if override.exists():
-        return override.read_text(encoding="utf-8")
+        try:
+            return override.read_text(encoding="utf-8")
+        except PermissionError:
+            raise NotFoundError(
+                f"cannot read snippet '{path}': permission denied on {override}"
+            )
+        except UnicodeDecodeError:
+            raise NotFoundError(
+                f"cannot read snippet '{path}': {override} is not valid UTF-8"
+            )
 
     try:
         ref: Traversable = resources.files("familiar.data.snippets")

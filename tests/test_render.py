@@ -100,6 +100,25 @@ class TestLoadText:
         with pytest.raises(NotFoundError, match="unknown invocation"):
             load_text(tmp_path, "invocations", "nonexistent")
 
+    def test_permission_denied_raises(self, tmp_path):
+        override_dir = tmp_path / ".familiar" / "conjurings"
+        override_dir.mkdir(parents=True)
+        f = override_dir / "locked.md"
+        f.write_text("content")
+        f.chmod(0o000)
+        try:
+            with pytest.raises(NotFoundError, match="permission denied"):
+                load_text(tmp_path, "conjurings", "locked")
+        finally:
+            f.chmod(0o644)
+
+    def test_invalid_utf8_raises(self, tmp_path):
+        override_dir = tmp_path / ".familiar" / "conjurings"
+        override_dir.mkdir(parents=True)
+        (override_dir / "binary.md").write_bytes(b"\xff\xfe invalid utf-8")
+        with pytest.raises(NotFoundError, match="not valid UTF-8"):
+            load_text(tmp_path, "conjurings", "binary")
+
 
 class TestComposeSystem:
     """tests for composing system prompts."""
@@ -288,6 +307,25 @@ class TestLoadSnippet:
     def test_unknown_snippet_raises(self, tmp_path):
         with pytest.raises(NotFoundError, match="unknown snippet"):
             load_snippet(tmp_path, "nonexistent/file.txt")
+
+    def test_permission_denied_raises(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        f = snippet_dir / "locked.txt"
+        f.write_text("content")
+        f.chmod(0o000)
+        try:
+            with pytest.raises(NotFoundError, match="permission denied"):
+                load_snippet(tmp_path, "test/locked.txt")
+        finally:
+            f.chmod(0o644)
+
+    def test_invalid_utf8_raises(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "binary.txt").write_bytes(b"\xff\xfe invalid utf-8")
+        with pytest.raises(NotFoundError, match="not valid UTF-8"):
+            load_snippet(tmp_path, "test/binary.txt")
 
 
 class TestResolveIncludes:

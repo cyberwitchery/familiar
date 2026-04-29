@@ -1,5 +1,11 @@
 # changelog
 
+## Unreleased
+
+- improve error messages for permission denied and encoding errors when reading local conjurings, invocations, and snippets
+- warn when git worktree removal fails instead of silently ignoring the error
+- show actionable error messages when writing instruction, skill, or subagent files fails
+
 ## [0.5.0] - 2026-04-26
 
 - fix worktree leak: clean up git worktree on agent failure instead of leaving stale worktrees
