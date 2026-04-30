@@ -14,7 +14,7 @@ import warnings
 from importlib.metadata import version
 from pathlib import Path
 
-from .agents import get_agents, get_agent
+from .agents import Agent, get_agents, get_agent
 from .lint import lint_all
 from .render import (
     NotFoundError,
@@ -45,6 +45,27 @@ class CliError(Exception):
 def _agent_hint() -> str:
     """Return a hint string listing valid agent names."""
     return f"valid agents: {', '.join(get_agents().keys())}"
+
+
+def _resolve_agent(name: str) -> "Agent":
+    """Look up an agent by name, raising CliError on unknown names."""
+    try:
+        return get_agent(name)
+    except KeyError as e:
+        raise CliError(str(e), hint=_agent_hint())
+
+
+def _write_file(path: Path, content: str, label: str = "") -> None:
+    """Write content to path, creating parent dirs. Wraps OSError as CliError."""
+    prefix = f"{label} " if label else ""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    except OSError as e:
+        raise CliError(
+            f"cannot write {prefix}{path}: {e}",
+            hint="check file permissions and disk space",
+        )
 
 
 def find_repo_root(start: Path) -> Path:
@@ -126,18 +147,9 @@ def create_worktree(repo_root: Path) -> Path:
 
 
 def write_instruction(repo_root: Path, agent_name: str, system: str) -> None:
-    try:
-        agent = get_agent(agent_name)
-    except KeyError as e:
-        raise CliError(str(e), hint=_agent_hint())
+    agent = _resolve_agent(agent_name)
     dest = repo_root / agent.output_file
-    try:
-        dest.write_text(system.strip() + "\n", encoding="utf-8")
-    except OSError as e:
-        raise CliError(
-            f"cannot write {dest}: {e}",
-            hint="check file permissions and disk space",
-        )
+    _write_file(dest, system.strip() + "\n")
 
 
 def write_skill(
@@ -150,10 +162,7 @@ def write_skill(
             hint="use lowercase letters, numbers, underscore, or hyphen",
         )
 
-    try:
-        agent = get_agent(agent_name)
-    except KeyError as e:
-        raise CliError(str(e), hint=_agent_hint())
+    agent = _resolve_agent(agent_name)
 
     if not agent.supports_skills():
         raise CliError(f"agent does not support skills: {agent_name}")
@@ -168,14 +177,7 @@ def write_skill(
         "## instructions\n\n"
         f"{prompt.strip()}\n"
     )
-    try:
-        skill_path.parent.mkdir(parents=True, exist_ok=True)
-        skill_path.write_text(content, encoding="utf-8")
-    except OSError as e:
-        raise CliError(
-            f"cannot write skill {skill_path}: {e}",
-            hint="check file permissions and disk space",
-        )
+    _write_file(skill_path, content, label="skill")
     return skill_path
 
 
@@ -193,10 +195,7 @@ def write_subagent(
             hint="use lowercase letters, numbers, underscore, or hyphen",
         )
 
-    try:
-        agent = get_agent(agent_name)
-    except KeyError as e:
-        raise CliError(str(e), hint=_agent_hint())
+    agent = _resolve_agent(agent_name)
 
     if not agent.supports_subagents():
         raise CliError(f"agent does not support subagents: {agent_name}")
@@ -212,14 +211,7 @@ def write_subagent(
         "## instructions\n\n"
         f"{system.strip()}\n"
     )
-    try:
-        subagent_path.parent.mkdir(parents=True, exist_ok=True)
-        subagent_path.write_text(content, encoding="utf-8")
-    except OSError as e:
-        raise CliError(
-            f"cannot write subagent {subagent_path}: {e}",
-            hint="check file permissions and disk space",
-        )
+    _write_file(subagent_path, content, label="subagent")
     return subagent_path
 
 
@@ -239,10 +231,7 @@ def parse_kv(pairs: list[str]) -> dict[str, str]:
 def run_agent(
     repo_root: Path, agent_name: str, prompt: str, headless: bool, auto: bool = False
 ) -> int:
-    try:
-        agent = get_agent(agent_name)
-    except KeyError as e:
-        raise CliError(str(e), hint=_agent_hint())
+    agent = _resolve_agent(agent_name)
     try:
         return agent.run(repo_root, prompt, headless, auto=auto)
     except FileNotFoundError:
