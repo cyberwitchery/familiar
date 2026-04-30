@@ -9,6 +9,8 @@ import argparse
 
 from familiar.cli import (
     _remove_worktree,
+    _resolve_agent,
+    _write_file,
     find_repo_root,
     create_worktree,
     write_instruction,
@@ -85,6 +87,50 @@ class TestFindRepoRoot:
         subdir.mkdir(parents=True)
         result = find_repo_root(subdir)
         assert result == subdir.resolve()
+
+
+class TestResolveAgent:
+    """tests for _resolve_agent helper."""
+
+    def test_returns_known_agent(self):
+        agent = _resolve_agent("claude")
+        assert agent.name == "claude"
+
+    def test_unknown_agent_raises(self):
+        with pytest.raises(CliError, match="unknown agent"):
+            _resolve_agent("nonexistent")
+
+    def test_unknown_agent_includes_hint(self):
+        with pytest.raises(CliError) as exc_info:
+            _resolve_agent("nonexistent")
+        assert exc_info.value.hint is not None
+        assert "valid agents" in exc_info.value.hint
+
+
+class TestWriteFile:
+    """tests for _write_file helper."""
+
+    def test_writes_content(self, tmp_path):
+        dest = tmp_path / "out.txt"
+        _write_file(dest, "hello\n")
+        assert dest.read_text() == "hello\n"
+
+    def test_creates_parent_dirs(self, tmp_path):
+        dest = tmp_path / "a" / "b" / "out.txt"
+        _write_file(dest, "nested\n")
+        assert dest.read_text() == "nested\n"
+
+    def test_oserror_without_label(self, tmp_path):
+        dest = tmp_path / "out.txt"
+        with patch("pathlib.Path.write_text", side_effect=PermissionError("denied")):
+            with pytest.raises(CliError, match="cannot write .*/out.txt"):
+                _write_file(dest, "content")
+
+    def test_oserror_with_label(self, tmp_path):
+        dest = tmp_path / "out.txt"
+        with patch("pathlib.Path.write_text", side_effect=PermissionError("denied")):
+            with pytest.raises(CliError, match="cannot write skill .*/out.txt"):
+                _write_file(dest, "content", label="skill")
 
 
 class TestWriteInstruction:
