@@ -265,7 +265,7 @@ def lint_collection(
                             message=f"plugin linter failed: {e}",
                         )
                     )
-        except Exception as e:
+        except NotFoundError as e:
             messages.append(
                 LintMessage(
                     level="error",

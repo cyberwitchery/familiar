@@ -281,6 +281,32 @@ class TestListItems:
         items = list_items(tmp_path, "conjurings")
         assert len(items) > 0
 
+    def test_list_skips_invalid_utf8_local(self, tmp_path):
+        templates = tmp_path / ".familiar" / "conjurings"
+        templates.mkdir(parents=True)
+        (templates / "good.md").write_text("# good file")
+        (templates / "bad.md").write_bytes(b"\xff\xfe not utf-8")
+
+        items = list_items(tmp_path, "conjurings")
+        names = [name for name, _, _ in items]
+        assert "good" in names
+        assert "bad" not in names
+
+    def test_list_skips_permission_denied_local(self, tmp_path):
+        templates = tmp_path / ".familiar" / "conjurings"
+        templates.mkdir(parents=True)
+        (templates / "good.md").write_text("# good file")
+        locked = templates / "locked.md"
+        locked.write_text("content")
+        locked.chmod(0o000)
+        try:
+            items = list_items(tmp_path, "conjurings")
+            names = [name for name, _, _ in items]
+            assert "good" in names
+            assert "locked" not in names
+        finally:
+            locked.chmod(0o644)
+
 
 class TestLoadSnippet:
     """tests for loading snippets."""
@@ -452,3 +478,14 @@ class TestListSnippets:
         paths = [p for p, _, _ in items]
         assert "test/visible.txt" in paths
         assert "test/_hidden.txt" not in paths
+
+    def test_list_snippets_skips_invalid_utf8(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "good.txt").write_text("good content")
+        (snippet_dir / "bad.txt").write_bytes(b"\xff\xfe not utf-8")
+
+        items = list_snippets(tmp_path)
+        local_paths = [p for p, _, is_local in items if is_local]
+        assert "test/good.txt" in local_paths
+        assert "test/bad.txt" not in local_paths

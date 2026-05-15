@@ -21,22 +21,23 @@ class NotFoundError(Exception):
     """Raised when a conjuring, invocation, or snippet is not found."""
 
 
+def _safe_read_text(path: Path, label: str) -> str:
+    """Read a UTF-8 text file, converting I/O errors to :class:`NotFoundError`."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except PermissionError:
+        raise NotFoundError(f"cannot read {label}: permission denied on {path}")
+    except UnicodeDecodeError:
+        raise NotFoundError(f"cannot read {label}: {path} is not valid UTF-8")
+
+
 def load_text(repo_root: Path, kind: str, name: str) -> str:
     """Load a conjuring or invocation; local overrides in .familiar override package data."""
     if not _VALID_NAME.match(name):
         raise NotFoundError(f"invalid {kind.rstrip('s')} name: {name}")
     override = repo_root / ".familiar" / kind / f"{name}.md"
     if override.exists():
-        try:
-            return override.read_text(encoding="utf-8")
-        except PermissionError:
-            raise NotFoundError(
-                f"cannot read {kind.rstrip('s')} '{name}': permission denied on {override}"
-            )
-        except UnicodeDecodeError:
-            raise NotFoundError(
-                f"cannot read {kind.rstrip('s')} '{name}': {override} is not valid UTF-8"
-            )
+        return _safe_read_text(override, f"{kind.rstrip('s')} '{name}'")
     pkg = f"familiar.data.{kind}"
     try:
         return (resources.files(pkg) / f"{name}.md").read_text(encoding="utf-8")
@@ -56,16 +57,7 @@ def load_snippet(repo_root: Path, path: str) -> str:
 
     override = repo_root / ".familiar" / "snippets" / path
     if override.exists():
-        try:
-            return override.read_text(encoding="utf-8")
-        except PermissionError:
-            raise NotFoundError(
-                f"cannot read snippet '{path}': permission denied on {override}"
-            )
-        except UnicodeDecodeError:
-            raise NotFoundError(
-                f"cannot read snippet '{path}': {override} is not valid UTF-8"
-            )
+        return _safe_read_text(override, f"snippet '{path}'")
 
     try:
         ref: Traversable = resources.files("familiar.data.snippets")
@@ -128,7 +120,10 @@ def _walk_traversable(root: Traversable, prefix: str = "") -> list[tuple[str, st
             if item.is_dir():
                 items.extend(_walk_traversable(item, rel))
             elif not item.name.startswith("_"):
-                content = item.read_text(encoding="utf-8")
+                try:
+                    content = item.read_text(encoding="utf-8")
+                except (UnicodeDecodeError, PermissionError):
+                    continue
                 first_line = content.split("\n", 1)[0].strip()
                 items.append((rel, first_line))
     except (FileNotFoundError, TypeError):
@@ -173,7 +168,10 @@ def _list_resources(
                 if item.name.startswith("_"):
                     continue
                 key = item.name[: -len(suffix)] if suffix else item.name
-                content = item.read_text(encoding="utf-8")
+                try:
+                    content = item.read_text(encoding="utf-8")
+                except (UnicodeDecodeError, PermissionError):
+                    continue
                 first_line = content.split("\n", 1)[0].strip()
                 items[key] = (first_line, False)
     except (FileNotFoundError, TypeError, ModuleNotFoundError):
@@ -189,7 +187,10 @@ def _list_resources(
             if not f.is_file() or f.name.startswith("_"):
                 continue
             key = str(f.relative_to(local_dir)) if recursive else f.stem
-            content = f.read_text(encoding="utf-8")
+            try:
+                content = f.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, PermissionError):
+                continue
             first_line = content.split("\n", 1)[0].strip()
             items[key] = (first_line, True)
 
