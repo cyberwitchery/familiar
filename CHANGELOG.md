@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- gracefully skip unreadable files (bad encoding, permission denied) when listing conjurings, invocations, and snippets instead of crashing
 - improve error messages for permission denied and encoding errors when reading local conjurings, invocations, and snippets
 - warn when git worktree removal fails instead of silently ignoring the error
 - show actionable error messages when writing instruction, skill, or subagent files fails

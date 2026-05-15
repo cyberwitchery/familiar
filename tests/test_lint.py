@@ -9,11 +9,13 @@ import pytest
 from familiar.lint import (
     LintMessage,
     lint_all,
+    lint_collection,
     lint_invocation,
     lint_snippet_references,
     lint_template,
     load_linters,
 )
+from familiar.render import NotFoundError
 
 
 class TestLintTemplate:
@@ -299,6 +301,48 @@ class TestLinterPlugins:
 
         error_messages = [m for m in messages if "plugin linter failed" in m.message]
         assert len(error_messages) >= 1
+
+
+class TestLintCollectionErrorHandling:
+    """tests for error handling in lint_collection."""
+
+    def test_load_error_produces_lint_error(self, tmp_path):
+        """A NotFoundError from load_text should produce a lint error, not crash."""
+        templates = tmp_path / ".familiar" / "conjurings"
+        templates.mkdir(parents=True)
+        (templates / "broken.md").write_text("# heading")
+
+        from familiar import lint as _lint_mod
+
+        original = _lint_mod.load_text
+
+        def patched(repo_root, kind, name):
+            if name == "broken":
+                raise NotFoundError("simulated read failure")
+            return original(repo_root, kind, name)
+
+        with patch.object(_lint_mod, "load_text", side_effect=patched):
+            messages = lint_collection(tmp_path, "conjurings", lint_template, [])
+
+        load_errors = [
+            m
+            for m in messages
+            if "broken.md" in m.file and "failed to load" in m.message
+        ]
+        assert len(load_errors) == 1
+        assert load_errors[0].level == "error"
+
+    def test_unexpected_linter_error_propagates(self, tmp_path):
+        """Errors not wrapped in NotFoundError should propagate, not be swallowed."""
+        templates = tmp_path / ".familiar" / "conjurings"
+        templates.mkdir(parents=True)
+        (templates / "test.md").write_text("# test")
+
+        def exploding_linter(content: str, name: str) -> list[LintMessage]:
+            raise RuntimeError("unexpected")
+
+        with pytest.raises(RuntimeError, match="unexpected"):
+            lint_collection(tmp_path, "conjurings", exploding_linter, [])
 
 
 class TestLintSnippetReferences:
