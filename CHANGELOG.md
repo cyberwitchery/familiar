@@ -1,6 +1,6 @@
 # changelog
 
-## Unreleased
+## [0.5.1] - 2026-05-22
 
 - gracefully skip unreadable files (bad encoding, permission denied) when listing conjurings, invocations, and snippets instead of crashing
 - improve error messages for permission denied and encoding errors when reading local conjurings, invocations, and snippets
