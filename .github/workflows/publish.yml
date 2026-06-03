@@ -13,8 +13,8 @@ jobs:
       id-token: write
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: build
@@ -26,12 +26,12 @@ jobs:
           pip install cyclonedx-bom
           python -m pip freeze --all | cyclonedx-py requirements - --pyproject pyproject.toml -o "/tmp/sbom-${{ github.ref_name }}.cdx.json"
       - name: upload sbom
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom-${{ github.ref_name }}
           path: /tmp/sbom-${{ github.ref_name }}.cdx.json
       - name: attach sbom to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: /tmp/sbom-${{ github.ref_name }}.cdx.json
       - name: publish to pypi
