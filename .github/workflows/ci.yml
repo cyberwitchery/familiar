@@ -39,7 +39,7 @@ jobs:
         run: make ci
       - name: upload coverage to codecov
         if: matrix.python-version == '3.14'
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           files: coverage.xml
           fail_ci_if_error: false
