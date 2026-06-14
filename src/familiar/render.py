@@ -1,4 +1,4 @@
-"""Render system and user prompts from conjurings and invocations."""
+"""render system and user prompts from conjurings and invocations."""
 
 from __future__ import annotations
 
@@ -18,11 +18,11 @@ _SNIPPET_INCLUDE = re.compile(r"{{>\s*snippet:([^}]+?)\s*}}")
 
 
 class NotFoundError(Exception):
-    """Raised when a conjuring, invocation, or snippet is not found."""
+    """raised when a conjuring, invocation, or snippet is not found."""
 
 
 def _safe_read_text(path: Path, label: str) -> str:
-    """Read a UTF-8 text file, converting I/O errors to :class:`NotFoundError`."""
+    """read a UTF-8 text file, converting I/O errors to :class:`NotFoundError`."""
     try:
         return path.read_text(encoding="utf-8")
     except PermissionError:
@@ -32,7 +32,7 @@ def _safe_read_text(path: Path, label: str) -> str:
 
 
 def load_text(repo_root: Path, kind: str, name: str) -> str:
-    """Load a conjuring or invocation; local overrides in .familiar override package data."""
+    """load a conjuring or invocation; local overrides in .familiar override package data."""
     if not _VALID_NAME.match(name):
         raise NotFoundError(f"invalid {kind.rstrip('s')} name: {name}")
     override = repo_root / ".familiar" / kind / f"{name}.md"
@@ -48,7 +48,7 @@ def load_text(repo_root: Path, kind: str, name: str) -> str:
 
 
 def load_snippet(repo_root: Path, path: str) -> str:
-    """Load a snippet by path; local overrides in .familiar/snippets/ win."""
+    """load a snippet by path; local overrides in .familiar/snippets/ win."""
     path = path.strip()
     if ".." in path.split("/"):
         raise NotFoundError(f"invalid snippet path: {path}")
@@ -70,7 +70,7 @@ def load_snippet(repo_root: Path, path: str) -> str:
 
 
 def resolve_includes(repo_root: Path, text: str) -> str:
-    """Resolve {{> snippet:path}} includes by replacing them with snippet content."""
+    """resolve {{> snippet:path}} includes by replacing them with snippet content."""
 
     def repl(m: re.Match[str]) -> str:
         return load_snippet(repo_root, m.group(1))
@@ -79,7 +79,7 @@ def resolve_includes(repo_root: Path, text: str) -> str:
 
 
 def substitute(text: str, args: list[str], kv: dict[str, str]) -> str:
-    """Substitute $1, $2, ... $ARGUMENTS and {{key}} placeholders in a single pass."""
+    """substitute $1, $2, ... $ARGUMENTS and {{key}} placeholders in a single pass."""
     missing: list[str] = []
 
     def repl(m: re.Match[str]) -> str:
@@ -100,9 +100,9 @@ def substitute(text: str, args: list[str], kv: dict[str, str]) -> str:
 
         return m.group(0)
 
-    # Combined regex for both types of placeholders:
-    # Group 1: \$(ARGUMENTS|\d+)
-    # Group 2: {{(\w+)}}
+    # combined regex for both types of placeholders:
+    # group 1: \$(ARGUMENTS|\d+)
+    # group 2: {{(\w+)}}
     pattern = re.compile(r"\$(ARGUMENTS|\d+)|{{(\w+)}}")
     text = pattern.sub(repl, text)
 
@@ -112,7 +112,7 @@ def substitute(text: str, args: list[str], kv: dict[str, str]) -> str:
 
 
 def _walk_traversable(root: Traversable, prefix: str = "") -> list[tuple[str, str]]:
-    """Recursively walk a Traversable, returning (relative_path, first_line) pairs."""
+    """recursively walk a Traversable, returning (relative_path, first_line) pairs."""
     items: list[tuple[str, str]] = []
     try:
         for item in sorted(root.iterdir(), key=lambda x: x.name):
@@ -139,19 +139,19 @@ def _list_resources(
     recursive: bool = False,
     suffix: str = "",
 ) -> list[tuple[str, str, bool]]:
-    """List resources from package data and local overrides.
+    """list resources from package data and local overrides.
 
-    Items from local ``.familiar/{local_subdir}/`` override package builtins.
+    items from local ``.familiar/{local_subdir}/`` override package builtins.
 
     Args:
-        repo_root: Repository root path.
-        pkg: Package name to scan for builtins.
-        local_subdir: Subdirectory name under ``.familiar/`` for local overrides.
-        recursive: If True, scan recursively (for nested resources like snippets).
-        suffix: File suffix filter (e.g. ``".md"``). Empty string matches all files.
+        repo_root: repository root path.
+        pkg: package name to scan for builtins.
+        local_subdir: subdirectory name under ``.familiar/`` for local overrides.
+        recursive: if True, scan recursively (for nested resources like snippets).
+        suffix: file suffix filter (e.g. ``".md"``). empty string matches all files.
 
     Returns:
-        Sorted list of ``(key, first_line, is_local)`` tuples.
+        sorted list of ``(key, first_line, is_local)`` tuples.
     """
     items: dict[str, tuple[str, bool]] = {}
 
@@ -201,9 +201,9 @@ def _list_resources(
 
 
 def list_snippets(repo_root: Path) -> list[tuple[str, str, bool]]:
-    """List available snippets.
+    """list available snippets.
 
-    Returns list of (path, first_line, is_local) tuples, sorted by path.
+    returns list of (path, first_line, is_local) tuples, sorted by path.
     """
     return _list_resources(
         repo_root, "familiar.data.snippets", "snippets", recursive=True
@@ -211,15 +211,15 @@ def list_snippets(repo_root: Path) -> list[tuple[str, str, bool]]:
 
 
 def list_items(repo_root: Path, kind: str) -> list[tuple[str, str, bool]]:
-    """List available conjurings or invocations.
+    """list available conjurings or invocations.
 
-    Returns list of (name, first_line, is_local) tuples, sorted by name.
+    returns list of (name, first_line, is_local) tuples, sorted by name.
     """
     return _list_resources(repo_root, f"familiar.data.{kind}", kind, suffix=".md")
 
 
 def compose_system(repo_root: Path, conjurings: list[str]) -> str:
-    """Compose system instructions from core + selected conjurings."""
+    """compose system instructions from core + selected conjurings."""
     core = load_text(repo_root, "conjurings", "core").strip()
     parts: list[str] = [core]
     for name in conjurings:
@@ -230,7 +230,7 @@ def compose_system(repo_root: Path, conjurings: list[str]) -> str:
 def render_invocation(
     repo_root: Path, invocation: str, args: list[str], kv: dict[str, str]
 ) -> str:
-    """Render an invocation with snippet inclusion and argument substitution."""
+    """render an invocation with snippet inclusion and argument substitution."""
     inv = load_text(repo_root, "invocations", invocation).strip()
     inv = resolve_includes(repo_root, inv)
     return substitute(inv, args, kv)

@@ -1,4 +1,4 @@
-"""Command-line interface for familiar."""
+"""command-line interface for familiar."""
 
 from __future__ import annotations
 
@@ -43,12 +43,12 @@ class CliError(Exception):
 
 
 def _agent_hint() -> str:
-    """Return a hint string listing valid agent names."""
+    """return a hint string listing valid agent names."""
     return f"valid agents: {', '.join(get_agents().keys())}"
 
 
 def _resolve_agent(name: str) -> "Agent":
-    """Look up an agent by name, raising CliError on unknown names."""
+    """look up an agent by name, raising CliError on unknown names."""
     try:
         return get_agent(name)
     except KeyError as e:
@@ -56,7 +56,7 @@ def _resolve_agent(name: str) -> "Agent":
 
 
 def _write_file(path: Path, content: str, label: str = "") -> None:
-    """Write content to path, creating parent dirs. Wraps OSError as CliError."""
+    """write content to path, creating parent dirs. wraps OSError as CliError."""
     prefix = f"{label} " if label else ""
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -69,9 +69,9 @@ def _write_file(path: Path, content: str, label: str = "") -> None:
 
 
 def find_repo_root(start: Path) -> Path:
-    """Find the repository root by looking for .git directory.
+    """find the repository root by looking for .git directory.
 
-    Walks up from start directory. Falls back to start directory itself
+    walks up from start directory. falls back to start directory itself
     if no .git is found, allowing use outside of git repositories.
     """
     cur = start.resolve()
@@ -82,7 +82,7 @@ def find_repo_root(start: Path) -> Path:
 
 
 def _remove_worktree(repo_root: Path, worktree_path: Path) -> None:
-    """Best-effort removal of a git worktree."""
+    """best-effort removal of a git worktree."""
     try:
         result = subprocess.run(
             [
@@ -107,8 +107,8 @@ def _remove_worktree(repo_root: Path, worktree_path: Path) -> None:
 
 
 def create_worktree(repo_root: Path) -> Path:
-    """Create a temporary git worktree for the repository."""
-    # Ensure it's a git repo
+    """create a temporary git worktree for the repository."""
+    # ensure it's a git repo
     try:
         subprocess.run(
             ["git", "-C", str(repo_root), "rev-parse", "--is-inside-work-tree"],
@@ -122,7 +122,7 @@ def create_worktree(repo_root: Path) -> Path:
 
     tmpdir = tempfile.mkdtemp(prefix="familiar-")
     # git worktree add requires the directory to NOT exist.
-    # mkdtemp creates it. Let's remove it and let git create it.
+    # mkdtemp creates it. let's remove it and let git create it.
     os.rmdir(tmpdir)
 
     try:
@@ -155,7 +155,7 @@ def write_instruction(repo_root: Path, agent_name: str, system: str) -> None:
 def write_skill(
     repo_root: Path, agent_name: str, invocation: str, skill_name: str, prompt: str
 ) -> Path:
-    """Write a reusable skill file for supported agents."""
+    """write a reusable skill file for supported agents."""
     if not _VALID_NAME.match(skill_name):
         raise CliError(
             f"invalid skill name: {skill_name}",
@@ -188,7 +188,7 @@ def write_subagent(
     subagent_name: str,
     system: str,
 ) -> Path:
-    """Write a reusable subagent file for supported agents."""
+    """write a reusable subagent file for supported agents."""
     if not _VALID_NAME.match(subagent_name):
         raise CliError(
             f"invalid subagent name: {subagent_name}",
@@ -291,7 +291,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         target_dir = create_worktree(repo_root)
         print(f"created worktree at {target_dir}")
 
-        # Best-effort copy of instruction file into the worktree
+        # best-effort copy of instruction file into the worktree
         try:
             agent = get_agent(args.agent)
             instr_file = repo_root / agent.output_file
@@ -363,7 +363,7 @@ def cmd_lint(args: argparse.Namespace) -> int:
 
     messages = lint_all(repo_root)
 
-    # Filter by level if requested
+    # filter by level if requested
     if args.errors_only:
         messages = [m for m in messages if m.level == "error"]
 
@@ -371,7 +371,7 @@ def cmd_lint(args: argparse.Namespace) -> int:
         print("all checks passed")
         return EXIT_SUCCESS
 
-    # Group by level for output
+    # group by level for output
     errors = [m for m in messages if m.level == "error"]
     warnings = [m for m in messages if m.level == "warning"]
 

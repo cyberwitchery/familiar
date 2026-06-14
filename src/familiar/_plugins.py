@@ -1,4 +1,4 @@
-"""Shared plugin loading utilities."""
+"""shared plugin loading utilities."""
 
 from __future__ import annotations
 
@@ -14,16 +14,16 @@ def load_plugins(
     label: str,
     invalid_msg: str = "validation failed",
 ) -> list[Any]:
-    """Load plugins from entry points with validation.
+    """load plugins from entry points with validation.
 
     Args:
-        group: Entry point group name.
-        validate: Predicate that returns True for valid loaded objects.
-        label: Human-readable label for warning messages (e.g. "linter plugin").
-        invalid_msg: Message when validation fails.
+        group: entry point group name.
+        validate: predicate that returns True for valid loaded objects.
+        label: human-readable label for warning messages (e.g. "linter plugin").
+        invalid_msg: message when validation fails.
 
     Returns:
-        List of loaded and validated plugin objects.
+        list of loaded and validated plugin objects.
     """
     results: list[Any] = []
     for ep in entry_points(group=group):

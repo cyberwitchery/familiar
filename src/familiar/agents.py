@@ -1,4 +1,4 @@
-"""Agent implementations for familiar."""
+"""agent implementations for familiar."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from ._plugins import load_plugins
 
 
 class Agent(ABC):
-    """Base class for AI coding agents."""
+    """base class for AI coding agents."""
 
     name: str
     output_file: str
@@ -24,24 +24,24 @@ class Agent(ABC):
     def run(
         self, repo_root: Path, prompt: str, headless: bool, auto: bool = False
     ) -> int:
-        """Run the agent with the given prompt."""
+        """run the agent with the given prompt."""
 
     def supports_skills(self) -> bool:
-        """Whether this agent supports reusable skill files."""
+        """whether this agent supports reusable skill files."""
         return self.skill_dir is not None
 
     def skill_path(self, repo_root: Path, skill_name: str) -> Path:
-        """Build the skill path for a given skill name."""
+        """build the skill path for a given skill name."""
         if self.skill_dir is None:
             raise ValueError(f"agent does not support skills: {self.name}")
         return repo_root / self.skill_dir / skill_name / self.skill_file
 
     def supports_subagents(self) -> bool:
-        """Whether this agent supports reusable subagent files."""
+        """whether this agent supports reusable subagent files."""
         return self.subagent_dir is not None
 
     def subagent_path(self, repo_root: Path, subagent_name: str) -> Path:
-        """Build the subagent path for a given subagent name."""
+        """build the subagent path for a given subagent name."""
         if self.subagent_dir is None:
             raise ValueError(f"agent does not support subagents: {self.name}")
         return repo_root / self.subagent_dir / subagent_name / self.subagent_file
@@ -91,11 +91,11 @@ class ClaudeAgent(Agent):
 
 
 def load_agents() -> dict[str, Agent]:
-    """Load all registered agent plugins via entry points.
+    """load all registered agent plugins via entry points.
 
     Returns:
-        Dictionary mapping agent names to Agent instances.
-        Plugins that fail to load are skipped with a warning.
+        dictionary mapping agent names to Agent instances.
+        plugins that fail to load are skipped with a warning.
     """
     plugins = load_plugins(
         "familiar.agents",
@@ -120,9 +120,9 @@ _agents_cache: dict[str, Agent] | None = None
 
 
 def get_agents() -> dict[str, Agent]:
-    """Get all available agents.
+    """get all available agents.
 
-    Returns a cached dictionary of agent name -> Agent instance.
+    returns a cached dictionary of agent name -> Agent instance.
     """
     global _agents_cache
     if _agents_cache is None:
@@ -131,7 +131,7 @@ def get_agents() -> dict[str, Agent]:
 
 
 def get_agent(name: str) -> Agent:
-    """Get an agent by name.
+    """get an agent by name.
 
     Raises:
         KeyError: if the agent name is not recognized.

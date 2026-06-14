@@ -1,4 +1,4 @@
-"""Linting for familiar conjurings and invocations."""
+"""linting for familiar conjurings and invocations."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from .render import _SNIPPET_INCLUDE, NotFoundError, list_items, load_snippet, l
 
 @dataclass
 class LintMessage:
-    """A lint message."""
+    """a lint message."""
 
     level: Literal["error", "warning"]
     file: str
@@ -28,17 +28,17 @@ class LintMessage:
         return f"{self.level}: {loc}: {self.message}"
 
 
-# Regex patterns for placeholders
+# regex patterns for placeholders
 _POSITIONAL_PLACEHOLDER = re.compile(r"\$(\d+|ARGUMENTS)")
 _NAMED_PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
 
-# Section patterns for invocations
-# Accept various task verbs as first line
+# section patterns for invocations
+# accept various task verbs as first line
 _TASK_LINE = re.compile(
     r"^(task|explain|review|analyze|check|audit|describe|create|generate|refactor|bootstrap|implement|add|fix)(\s|:)",
     re.IGNORECASE,
 )
-# Accept inputs, input, arguments as input sections (with or without ## heading)
+# accept inputs, input, arguments as input sections (with or without ## heading)
 _INPUTS_SECTION = re.compile(
     r"^(##\s+)?(inputs?|arguments?)(\s*\([^)]+\))?:?\s*$", re.IGNORECASE | re.MULTILINE
 )
@@ -48,10 +48,10 @@ _OUTPUT_SECTION = re.compile(
 
 
 def lint_template(content: str, name: str) -> list[LintMessage]:
-    """Lint a template (conjuring) file.
+    """lint a template (conjuring) file.
 
-    Templates should:
-    - Start with a markdown heading
+    templates should:
+    - start with a markdown heading
     """
     messages: list[LintMessage] = []
     lines = content.split("\n")
@@ -82,13 +82,13 @@ def lint_template(content: str, name: str) -> list[LintMessage]:
 
 
 def lint_invocation(content: str, name: str) -> list[LintMessage]:
-    """Lint an invocation file.
+    """lint an invocation file.
 
-    Invocations should:
-    - Start with a task: line (or similar verb)
-    - Have an inputs section (warning if missing)
-    - Have an output section (warning if missing)
-    - Document all placeholders used
+    invocations should:
+    - start with a task: line (or similar verb)
+    - have an inputs section (warning if missing)
+    - have an output section (warning if missing)
+    - document all placeholders used
     """
     messages: list[LintMessage] = []
     lines = content.split("\n")
@@ -104,7 +104,7 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
         )
         return messages
 
-    # Check first line is a task line
+    # check first line is a task line
     first_line = lines[0].strip()
     if not _TASK_LINE.match(first_line):
         messages.append(
@@ -116,7 +116,7 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
             )
         )
 
-    # Check for inputs section
+    # check for inputs section
     if not _INPUTS_SECTION.search(content):
         messages.append(
             LintMessage(
@@ -127,7 +127,7 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
             )
         )
 
-    # Check for output section
+    # check for output section
     if not _OUTPUT_SECTION.search(content):
         messages.append(
             LintMessage(
@@ -138,16 +138,16 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
             )
         )
 
-    # Find all placeholders and check if they're documented
+    # find all placeholders and check if they're documented
     positional = set(_POSITIONAL_PLACEHOLDER.findall(content))
     named = set(_NAMED_PLACEHOLDER.findall(content))
 
-    # Check if placeholders are mentioned in content (loose check)
-    # Prefer checking the inputs section if it exists
+    # check if placeholders are mentioned in content (loose check)
+    # prefer checking the inputs section if it exists
     inputs_match = _INPUTS_SECTION.search(content)
     if inputs_match:
         start = inputs_match.end()
-        # Look ahead for the next markdown heading or end of file
+        # look ahead for the next markdown heading or end of file
         next_heading = re.search(r"^#", content[start:], re.MULTILINE)
         search_area = (
             content[start : start + next_heading.start()]
@@ -158,7 +158,7 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
         search_area = content.lower()
 
     for placeholder in named:
-        # Check if placeholder name appears in search area
+        # check if placeholder name appears in search area
         if placeholder.lower() not in search_area.replace(
             f"{{{{{placeholder.lower()}}}}}", ""
         ):
@@ -171,7 +171,7 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
                 )
             )
 
-    # Check for undocumented positional args
+    # check for undocumented positional args
     for p in positional:
         if p == "ARGUMENTS":
             continue
@@ -189,18 +189,18 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
     return messages
 
 
-# Type alias for linter functions
+# type alias for linter functions
 LinterFunc = Callable[[str, str], list[LintMessage]]
 
 
 def load_linters(kind: Literal["conjurings", "invocations"]) -> list[LinterFunc]:
-    """Load linter plugins for the given kind.
+    """load linter plugins for the given kind.
 
     Args:
-        kind: Either "conjurings" or "invocations".
+        kind: either "conjurings" or "invocations".
 
     Returns:
-        List of linter functions from plugins.
+        list of linter functions from plugins.
     """
     return load_plugins(
         f"familiar.linters.{kind}",
@@ -213,7 +213,7 @@ def load_linters(kind: Literal["conjurings", "invocations"]) -> list[LinterFunc]
 def lint_snippet_references(
     repo_root: Path, content: str, name: str
 ) -> list[LintMessage]:
-    """Check that all snippet includes reference existing snippets."""
+    """check that all snippet includes reference existing snippets."""
     messages: list[LintMessage] = []
     for i, line in enumerate(content.split("\n"), 1):
         for m in _SNIPPET_INCLUDE.finditer(line):
@@ -238,7 +238,7 @@ def lint_collection(
     builtin_linter: LinterFunc,
     plugin_linters: list[LinterFunc],
 ) -> list[LintMessage]:
-    """Lint a collection of items (conjurings or invocations)."""
+    """lint a collection of items (conjurings or invocations)."""
     messages: list[LintMessage] = []
     for name, _, is_local in list_items(repo_root, kind):
         try:
@@ -248,11 +248,11 @@ def lint_collection(
                 if is_local
                 else f"(builtin) {kind}/{name}.md"
             )
-            # Built-in linter
+            # built-in linter
             messages.extend(builtin_linter(content, prefix))
-            # Snippet reference validation
+            # snippet reference validation
             messages.extend(lint_snippet_references(repo_root, content, prefix))
-            # Plugin linters
+            # plugin linters
             for linter in plugin_linters:
                 try:
                     messages.extend(linter(content, prefix))
@@ -278,24 +278,24 @@ def lint_collection(
 
 
 def lint_all(repo_root: Path) -> list[LintMessage]:
-    """Lint all conjurings and invocations.
+    """lint all conjurings and invocations.
 
-    Runs built-in linters and any plugin linters registered via entry points.
+    runs built-in linters and any plugin linters registered via entry points.
 
-    Returns a list of lint messages (errors and warnings).
+    returns a list of lint messages (errors and warnings).
     """
     messages: list[LintMessage] = []
 
-    # Load plugin linters
+    # load plugin linters
     conjuring_linters = load_linters("conjurings")
     invocation_linters = load_linters("invocations")
 
-    # Lint conjurings
+    # lint conjurings
     messages.extend(
         lint_collection(repo_root, "conjurings", lint_template, conjuring_linters)
     )
 
-    # Lint invocations
+    # lint invocations
     messages.extend(
         lint_collection(repo_root, "invocations", lint_invocation, invocation_linters)
     )
