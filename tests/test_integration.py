@@ -223,7 +223,6 @@ class TestListIntegration:
             text=True,
         )
         assert result.returncode == 0
-        # verbose includes description after colon
         assert ":" in result.stdout
 
     def test_list_with_local_override(self, tmp_path):
@@ -267,7 +266,6 @@ class TestSnippetIntegration:
         from familiar.render import render_invocation
 
         result = render_invocation(tmp_path, "bootstrap-python", ["myapp", "cli"], {})
-        # The snippet content should be inlined
         assert "[project]" in result
         assert "pyproject.toml" not in result or "snippet:" not in result
 
@@ -276,7 +274,6 @@ class TestSnippetIntegration:
         from familiar.render import render_invocation
 
         result = render_invocation(tmp_path, "add-ci", ["github", "python"], {})
-        # Should contain inlined workflow, not the snippet directive
         assert "{{> snippet:" not in result
         assert "actions/checkout" in result
 

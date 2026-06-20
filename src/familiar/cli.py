@@ -24,7 +24,6 @@ from .render import (
     render_invocation,
 )
 
-# exit codes
 EXIT_SUCCESS = 0
 EXIT_ERROR = 1  # general error (agent failed, etc.)
 EXIT_USAGE = 2  # usage error (bad args, missing files, etc.)
@@ -108,7 +107,6 @@ def _remove_worktree(repo_root: Path, worktree_path: Path) -> None:
 
 def create_worktree(repo_root: Path) -> Path:
     """create a temporary git worktree for the repository."""
-    # ensure it's a git repo
     try:
         subprocess.run(
             ["git", "-C", str(repo_root), "rev-parse", "--is-inside-work-tree"],
@@ -332,7 +330,6 @@ def cmd_list(args: argparse.Namespace) -> int:
     repo_root = find_repo_root(Path(args.into or os.getcwd()))
 
     if args.kind is None:
-        # list all
         conjurings = list_items(repo_root, "conjurings")
         invocations = list_items(repo_root, "invocations")
         snippets = list_snippets(repo_root)
@@ -363,7 +360,6 @@ def cmd_lint(args: argparse.Namespace) -> int:
 
     messages = lint_all(repo_root)
 
-    # filter by level if requested
     if args.errors_only:
         messages = [m for m in messages if m.level == "error"]
 
@@ -371,7 +367,6 @@ def cmd_lint(args: argparse.Namespace) -> int:
         print("all checks passed")
         return EXIT_SUCCESS
 
-    # group by level for output
     errors = [m for m in messages if m.level == "error"]
     warnings = [m for m in messages if m.level == "warning"]
 

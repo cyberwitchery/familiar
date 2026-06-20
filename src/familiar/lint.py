@@ -28,11 +28,9 @@ class LintMessage:
         return f"{self.level}: {loc}: {self.message}"
 
 
-# regex patterns for placeholders
 _POSITIONAL_PLACEHOLDER = re.compile(r"\$(\d+|ARGUMENTS)")
 _NAMED_PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
 
-# section patterns for invocations
 # accept various task verbs as first line
 _TASK_LINE = re.compile(
     r"^(task|explain|review|analyze|check|audit|describe|create|generate|refactor|bootstrap|implement|add|fix)(\s|:)",
@@ -104,7 +102,6 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
         )
         return messages
 
-    # check first line is a task line
     first_line = lines[0].strip()
     if not _TASK_LINE.match(first_line):
         messages.append(
@@ -116,7 +113,6 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
             )
         )
 
-    # check for inputs section
     if not _INPUTS_SECTION.search(content):
         messages.append(
             LintMessage(
@@ -127,7 +123,6 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
             )
         )
 
-    # check for output section
     if not _OUTPUT_SECTION.search(content):
         messages.append(
             LintMessage(
@@ -138,12 +133,10 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
             )
         )
 
-    # find all placeholders and check if they're documented
     positional = set(_POSITIONAL_PLACEHOLDER.findall(content))
     named = set(_NAMED_PLACEHOLDER.findall(content))
 
-    # check if placeholders are mentioned in content (loose check)
-    # prefer checking the inputs section if it exists
+    # loose check: prefer the inputs section if it exists, else the whole file
     inputs_match = _INPUTS_SECTION.search(content)
     if inputs_match:
         start = inputs_match.end()
@@ -158,7 +151,6 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
         search_area = content.lower()
 
     for placeholder in named:
-        # check if placeholder name appears in search area
         if placeholder.lower() not in search_area.replace(
             f"{{{{{placeholder.lower()}}}}}", ""
         ):
@@ -171,7 +163,6 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
                 )
             )
 
-    # check for undocumented positional args
     for p in positional:
         if p == "ARGUMENTS":
             continue
@@ -189,7 +180,6 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
     return messages
 
 
-# type alias for linter functions
 LinterFunc = Callable[[str, str], list[LintMessage]]
 
 
@@ -248,11 +238,8 @@ def lint_collection(
                 if is_local
                 else f"(builtin) {kind}/{name}.md"
             )
-            # built-in linter
             messages.extend(builtin_linter(content, prefix))
-            # snippet reference validation
             messages.extend(lint_snippet_references(repo_root, content, prefix))
-            # plugin linters
             for linter in plugin_linters:
                 try:
                     messages.extend(linter(content, prefix))
@@ -286,16 +273,12 @@ def lint_all(repo_root: Path) -> list[LintMessage]:
     """
     messages: list[LintMessage] = []
 
-    # load plugin linters
     conjuring_linters = load_linters("conjurings")
     invocation_linters = load_linters("invocations")
 
-    # lint conjurings
     messages.extend(
         lint_collection(repo_root, "conjurings", lint_template, conjuring_linters)
     )
-
-    # lint invocations
     messages.extend(
         lint_collection(repo_root, "invocations", lint_invocation, invocation_linters)
     )

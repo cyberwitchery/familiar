@@ -129,7 +129,6 @@ class TestComposeSystem:
         assert "python" in system.lower()
 
     def test_compose_order(self, tmp_path):
-        # create local overrides to control content
         templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "core.md").write_text("CORE")
@@ -137,7 +136,6 @@ class TestComposeSystem:
         (templates / "second.md").write_text("SECOND")
 
         system = compose_system(tmp_path, ["first", "second"])
-        # verify order: core, then conjurings in order
         assert system == "CORE\n\nFIRST\n\nSECOND"
 
     def test_compose_core_only(self, tmp_path):

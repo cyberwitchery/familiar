@@ -155,7 +155,6 @@ def _list_resources(
     """
     items: dict[str, tuple[str, bool]] = {}
 
-    # built-in resources from package data
     try:
         pkg_root = resources.files(pkg)
         if recursive:
@@ -177,7 +176,6 @@ def _list_resources(
     except (FileNotFoundError, TypeError, ModuleNotFoundError):
         pass
 
-    # local overrides
     local_dir = repo_root / ".familiar" / local_subdir
     if local_dir.is_dir():
         files = (

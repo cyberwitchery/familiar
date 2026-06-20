@@ -321,7 +321,6 @@ class TestCmdInvoke:
             )
             result = cmd_invoke(args)
             assert result == 0
-            # check that the prompt is the rendered invocation
             call_args = mock_run.call_args
             prompt = call_args[0][2]
             assert "explain" in prompt.lower()
@@ -344,7 +343,6 @@ class TestCmdInvoke:
             cmd_invoke(args)
 
     def test_kv_args_passed(self, tmp_path):
-        # create custom invocation that uses kv
         inv_dir = tmp_path / ".familiar" / "invocations"
         inv_dir.mkdir(parents=True)
         (inv_dir / "custom.md").write_text("value is {{mykey}}")
@@ -410,7 +408,6 @@ class TestCmdInvoke:
         ) as mock_wt:
             with patch("familiar.cli.run_agent", return_value=0) as mock_run:
                 with patch("shutil.copy2") as mock_copy:
-                    # Create instruction file to be copied
                     (tmp_path / "CLAUDE.md").write_text("instr")
 
                     args = argparse.Namespace(
@@ -429,9 +426,7 @@ class TestCmdInvoke:
                     result = cmd_invoke(args)
                     assert result == 0
                     mock_wt.assert_called_once()
-                    # Check that run_agent was called with the worktree path
                     assert mock_run.call_args[0][0] == tmp_path / "wt"
-                    # Check that instruction file was copied
                     mock_copy.assert_called_once()
 
     def test_invoke_worktree_cleaned_up_on_error(self, tmp_path):
@@ -571,7 +566,6 @@ class TestCmdList:
         )
         cmd_list(args)
         captured = capsys.readouterr()
-        # verbose mode includes first line after colon
         assert ":" in captured.out
 
     def test_list_local_marked(self, tmp_path, capsys):
