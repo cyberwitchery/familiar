@@ -177,6 +177,33 @@ output
         placeholder_warnings = [m for m in messages if "{{myarg}}" in m.message]
         assert placeholder_warnings == []
 
+    def test_placeholder_substring_in_other_word_warns(self):
+        content = """task: process {{name}}
+
+inputs
+- filename (required): the file to process
+
+output
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        placeholder_warnings = [m for m in messages if "{{name}}" in m.message]
+        assert len(placeholder_warnings) == 1
+        assert placeholder_warnings[0].level == "warning"
+
+    def test_placeholder_tag_in_inputs_section_no_warning(self):
+        content = """task: implement {{spec}}
+
+inputs
+- {{spec}} (required): feature specification
+
+output
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        placeholder_warnings = [m for m in messages if "{{spec}}" in m.message]
+        assert placeholder_warnings == []
+
 
 class TestLintAll:
     """tests for linting all conjurings and invocations."""

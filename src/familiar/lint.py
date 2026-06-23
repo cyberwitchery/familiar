@@ -151,9 +151,14 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
         search_area = content.lower()
 
     for placeholder in named:
-        if placeholder.lower() not in search_area.replace(
-            f"{{{{{placeholder.lower()}}}}}", ""
-        ):
+        tag = f"{{{{{placeholder.lower()}}}}}"
+        stripped = search_area.replace(tag, "")
+        # accept the placeholder as documented if its bare name appears as a
+        # standalone word (after stripping {{…}} syntax) OR if the {{…}} tag
+        # itself appears in the inputs section (the common "- {{name}}: …"
+        # documentation pattern).
+        bare_match = re.search(r"\b" + re.escape(placeholder.lower()) + r"\b", stripped)
+        if not bare_match and tag not in search_area:
             messages.append(
                 LintMessage(
                     level="warning",

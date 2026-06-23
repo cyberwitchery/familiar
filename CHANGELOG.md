@@ -1,5 +1,9 @@
 # changelog
 
+## unreleased
+
+- fix lint false-negative for undocumented named placeholders: substring check no longer matches inside other words (e.g. `{{name}}` was silently accepted when only `filename` appeared in inputs)
+
 ## [0.5.1] - 2026-05-22
 
 - gracefully skip unreadable files (bad encoding, permission denied) when listing conjurings, invocations, and snippets instead of crashing
