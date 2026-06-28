@@ -96,7 +96,10 @@ def substitute(text: str, args: list[str], kv: dict[str, str]) -> str:
             return ""
 
         if named_ident:
-            return kv.get(named_ident, m.group(0))
+            if named_ident in kv:
+                return kv[named_ident]
+            missing.append(m.group(0))
+            return m.group(0)
 
         return m.group(0)
 
