@@ -2,6 +2,7 @@
 
 ## unreleased
 
+- warn on stderr when a `{{key}}` placeholder has no matching `--kv` value instead of silently leaving the literal `{{key}}` in the rendered prompt (positional `$N` placeholders already warned)
 - fix lint false-negative for undocumented named placeholders: substring check no longer matches inside other words (e.g. `{{name}}` was silently accepted when only `filename` appeared in inputs)
 
 ## [0.5.1] - 2026-05-22

@@ -62,6 +62,27 @@ class TestSubstitute:
         result = substitute(text, ["first", "second"], {})
         assert result == "second before first"
 
+    def test_missing_named_warns(self, capsys):
+        text = "spec: {{spec}}"
+        result = substitute(text, [], {})
+        assert result == "spec: {{spec}}"
+        captured = capsys.readouterr()
+        assert "warning: missing arguments: {{spec}}" in captured.err
+
+    def test_present_named_no_warning(self, capsys):
+        text = "spec: {{spec}}"
+        result = substitute(text, [], {"spec": "caching"})
+        assert result == "spec: caching"
+        captured = capsys.readouterr()
+        assert captured.err == ""
+
+    def test_missing_mixed_reports_both(self, capsys):
+        text = "$1 and {{spec}} and $2"
+        result = substitute(text, ["only_one"], {})
+        assert result == "only_one and {{spec}} and "
+        captured = capsys.readouterr()
+        assert "warning: missing arguments: {{spec}}, $2" in captured.err
+
 
 class TestLoadText:
     """tests for loading conjurings and invocations."""
