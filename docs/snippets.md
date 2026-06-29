@@ -41,6 +41,8 @@ use `{{> snippet:path}}` inside invocations to include a snippet:
 
 includes are resolved before placeholder substitution, so snippets can contain `$1`, `$ARGUMENTS`, and `{{key}}` placeholders.
 
+a snippet may itself include other snippets; nested includes are expanded recursively. include cycles (a snippet that includes itself, directly or transitively) raise an error naming the chain rather than looping forever.
+
 ## listing snippets
 
 ```bash

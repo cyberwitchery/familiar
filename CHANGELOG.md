@@ -2,6 +2,7 @@
 
 ## unreleased
 
+- resolve nested snippet includes: a `{{> snippet:...}}` directive inside an included snippet is now expanded instead of leaking into the rendered prompt verbatim; include cycles (self- or mutually-recursive) raise a clear error naming the chain
 - warn on stderr when a `{{key}}` placeholder has no matching `--kv` value instead of silently leaving the literal `{{key}}` in the rendered prompt (positional `$N` placeholders already warned)
 - fix lint false-negative for undocumented named placeholders: substring check no longer matches inside other words (e.g. `{{name}}` was silently accepted when only `filename` appeared in inputs)
 

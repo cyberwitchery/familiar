@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from familiar.render import (
+    _MAX_INCLUDE_DEPTH,
     NotFoundError,
     compose_system,
     list_items,
@@ -435,6 +436,63 @@ class TestResolveIncludes:
         text = "{{>  snippet:test/file.txt  }}"
         result = resolve_includes(tmp_path, text)
         assert result == "content"
+
+    def test_nested_include_resolves(self, tmp_path):
+        """a snippet that includes another snippet is expanded fully."""
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "outer.txt").write_text("outer[{{> snippet:test/inner.txt}}]")
+        (snippet_dir / "inner.txt").write_text("INNER")
+
+        result = resolve_includes(tmp_path, "{{> snippet:test/outer.txt}}")
+        assert result == "outer[INNER]"
+        assert "{{> snippet" not in result
+
+    def test_deeply_nested_include_resolves(self, tmp_path):
+        """nested includes resolve through several levels."""
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "a.txt").write_text("a({{> snippet:test/b.txt}})")
+        (snippet_dir / "b.txt").write_text("b({{> snippet:test/c.txt}})")
+        (snippet_dir / "c.txt").write_text("c")
+
+        result = resolve_includes(tmp_path, "{{> snippet:test/a.txt}}")
+        assert result == "a(b(c))"
+
+    def test_self_include_raises_cycle(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "loop.txt").write_text("{{> snippet:test/loop.txt}}")
+
+        with pytest.raises(NotFoundError, match="snippet include cycle") as exc:
+            resolve_includes(tmp_path, "{{> snippet:test/loop.txt}}")
+        assert "test/loop.txt -> test/loop.txt" in str(exc.value)
+
+    def test_mutual_include_raises_cycle(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "a.txt").write_text("{{> snippet:test/b.txt}}")
+        (snippet_dir / "b.txt").write_text("{{> snippet:test/a.txt}}")
+
+        with pytest.raises(NotFoundError, match="snippet include cycle") as exc:
+            resolve_includes(tmp_path, "{{> snippet:test/a.txt}}")
+        assert "test/a.txt" in str(exc.value)
+        assert "test/b.txt" in str(exc.value)
+
+    def test_include_depth_backstop(self, tmp_path):
+        """an over-deep acyclic chain raises rather than recursing without bound."""
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        chain_len = _MAX_INCLUDE_DEPTH + 2
+        for i in range(chain_len):
+            if i < chain_len - 1:
+                body = "{{> snippet:test/s" + str(i + 1) + ".txt}}"
+            else:
+                body = "end"
+            (snippet_dir / f"s{i}.txt").write_text(body)
+
+        with pytest.raises(NotFoundError, match="depth exceeded"):
+            resolve_includes(tmp_path, "{{> snippet:test/s0.txt}}")
 
 
 class TestListSnippets:
