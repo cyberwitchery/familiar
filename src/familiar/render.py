@@ -15,6 +15,7 @@ from pathlib import Path
 _VALID_NAME = re.compile(r"^[a-z0-9_-]+$")
 _VALID_SNIPPET_PATH = re.compile(r"^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)+$")
 _SNIPPET_INCLUDE = re.compile(r"{{>\s*snippet:([^}]+?)\s*}}")
+_MAX_INCLUDE_DEPTH = 50
 
 
 class NotFoundError(Exception):
@@ -70,12 +71,29 @@ def load_snippet(repo_root: Path, path: str) -> str:
 
 
 def resolve_includes(repo_root: Path, text: str) -> str:
-    """resolve {{> snippet:path}} includes by replacing them with snippet content."""
+    """resolve {{> snippet:path}} includes, expanding nested includes recursively.
 
-    def repl(m: re.Match[str]) -> str:
-        return load_snippet(repo_root, m.group(1))
+    a snippet may include other snippets. include cycles (self-includes or
+    a -> b -> a) raise :class:`NotFoundError` naming the chain; a max-depth
+    backstop guards against pathologically deep nesting.
+    """
 
-    return _SNIPPET_INCLUDE.sub(repl, text)
+    def expand(text: str, chain: list[str]) -> str:
+        def repl(m: re.Match[str]) -> str:
+            path = m.group(1).strip()
+            if path in chain:
+                trail = " -> ".join([*chain, path])
+                raise NotFoundError(f"snippet include cycle: {trail}")
+            if len(chain) >= _MAX_INCLUDE_DEPTH:
+                trail = " -> ".join([*chain, path])
+                raise NotFoundError(
+                    f"snippet include depth exceeded ({_MAX_INCLUDE_DEPTH}): {trail}"
+                )
+            return expand(load_snippet(repo_root, path), [*chain, path])
+
+        return _SNIPPET_INCLUDE.sub(repl, text)
+
+    return expand(text, [])
 
 
 def substitute(text: str, args: list[str], kv: dict[str, str]) -> str:
