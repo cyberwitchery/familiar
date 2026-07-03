@@ -22,9 +22,11 @@ jobs:
           pip install build
           python -m build
       - name: generate sbom
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
           pip install cyclonedx-bom
-          python -m pip freeze --all | cyclonedx-py requirements - --pyproject pyproject.toml -o "/tmp/sbom-${{ github.ref_name }}.cdx.json"
+          python -m pip freeze --all | cyclonedx-py requirements - --pyproject pyproject.toml -o "/tmp/sbom-${REF_NAME}.cdx.json"
       - name: upload sbom
         uses: actions/upload-artifact@v7
         with:
