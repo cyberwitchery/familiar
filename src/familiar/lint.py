@@ -9,7 +9,15 @@ from typing import Callable, Literal
 
 from ._plugins import load_plugins
 
-from .render import _SNIPPET_INCLUDE, NotFoundError, list_items, load_snippet, load_text
+from .render import (
+    _SNIPPET_INCLUDE,
+    NotFoundError,
+    _expand_includes,
+    list_items,
+    list_snippets,
+    load_snippet,
+    load_text,
+)
 
 
 @dataclass
@@ -208,13 +216,19 @@ def load_linters(kind: Literal["conjurings", "invocations"]) -> list[LinterFunc]
 def lint_snippet_references(
     repo_root: Path, content: str, name: str
 ) -> list[LintMessage]:
-    """check that all snippet includes reference existing snippets."""
+    """check that snippet includes resolve, following them transitively.
+
+    each top-level ``{{> snippet:path}}`` directive is validated along with
+    every snippet it pulls in, mirroring how the renderer expands includes at
+    conjure/invoke time. a broken reference, an include cycle, or an over-deep
+    chain is reported against the line of the top-level directive.
+    """
     messages: list[LintMessage] = []
     for i, line in enumerate(content.split("\n"), 1):
         for m in _SNIPPET_INCLUDE.finditer(line):
             snippet_path = m.group(1).strip()
             try:
-                load_snippet(repo_root, snippet_path)
+                body = load_snippet(repo_root, snippet_path)
             except NotFoundError:
                 messages.append(
                     LintMessage(
@@ -224,6 +238,46 @@ def lint_snippet_references(
                         message=f"snippet not found: {snippet_path}",
                     )
                 )
+                continue
+            try:
+                _expand_includes(repo_root, body, [snippet_path])
+            except NotFoundError as e:
+                messages.append(
+                    LintMessage(
+                        level="error",
+                        file=name,
+                        line=i,
+                        message=str(e),
+                    )
+                )
+    return messages
+
+
+def lint_snippet_collection(repo_root: Path) -> list[LintMessage]:
+    """lint every snippet body for broken, cyclic, or over-deep includes.
+
+    a snippet may include other snippets; a bad snippet->snippet include stays
+    invisible until something transitively pulls it in. each snippet is checked
+    against its own path.
+    """
+    messages: list[LintMessage] = []
+    for path, _, is_local in list_snippets(repo_root):
+        prefix = (
+            f".familiar/snippets/{path}" if is_local else f"(builtin) snippets/{path}"
+        )
+        try:
+            content = load_snippet(repo_root, path)
+        except NotFoundError as e:
+            messages.append(
+                LintMessage(
+                    level="error",
+                    file=prefix,
+                    line=None,
+                    message=f"failed to load: {e}",
+                )
+            )
+            continue
+        messages.extend(lint_snippet_references(repo_root, content, prefix))
     return messages
 
 
@@ -287,5 +341,6 @@ def lint_all(repo_root: Path) -> list[LintMessage]:
     messages.extend(
         lint_collection(repo_root, "invocations", lint_invocation, invocation_linters)
     )
+    messages.extend(lint_snippet_collection(repo_root))
 
     return messages

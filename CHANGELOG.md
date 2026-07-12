@@ -1,5 +1,10 @@
 # changelog
 
+## Unreleased
+
+- `familiar lint` now follows snippet includes transitively: a conjuring or invocation that pulls in a snippet whose own body has a broken, cyclic, or too-deeply-nested include is reported at lint time instead of only failing later at `conjure`/`invoke`
+- `familiar lint` now checks the snippet collection itself, so a broken or cyclic snippet-to-snippet include is caught even when nothing references it yet
+
 ## [0.5.2] - 2026-07-05
 
 - resolve nested snippet includes: a `{{> snippet:...}}` directive inside an included snippet is now expanded instead of leaking into the rendered prompt verbatim; include cycles (self- or mutually-recursive) raise a clear error naming the chain
