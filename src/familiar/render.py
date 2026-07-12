@@ -70,6 +70,32 @@ def load_snippet(repo_root: Path, path: str) -> str:
         raise NotFoundError(f"unknown snippet: {path}")
 
 
+def _expand_includes(repo_root: Path, text: str, chain: list[str]) -> str:
+    """recursively expand {{> snippet:path}} includes in ``text``.
+
+    ``chain`` is the stack of ancestor snippet paths currently being expanded,
+    used to detect include cycles and cap nesting depth. shared by
+    :func:`resolve_includes` and the linter so both agree on exactly what
+    resolves, cycles, or exceeds depth.
+    """
+
+    def repl(m: re.Match[str]) -> str:
+        path = m.group(1).strip()
+        if path in chain:
+            trail = " -> ".join([*chain, path])
+            raise NotFoundError(f"snippet include cycle: {trail}")
+        if len(chain) >= _MAX_INCLUDE_DEPTH:
+            trail = " -> ".join([*chain, path])
+            raise NotFoundError(
+                f"snippet include depth exceeded ({_MAX_INCLUDE_DEPTH}): {trail}"
+            )
+        return _expand_includes(
+            repo_root, load_snippet(repo_root, path), [*chain, path]
+        )
+
+    return _SNIPPET_INCLUDE.sub(repl, text)
+
+
 def resolve_includes(repo_root: Path, text: str) -> str:
     """resolve {{> snippet:path}} includes, expanding nested includes recursively.
 
@@ -77,23 +103,7 @@ def resolve_includes(repo_root: Path, text: str) -> str:
     a -> b -> a) raise :class:`NotFoundError` naming the chain; a max-depth
     backstop guards against pathologically deep nesting.
     """
-
-    def expand(text: str, chain: list[str]) -> str:
-        def repl(m: re.Match[str]) -> str:
-            path = m.group(1).strip()
-            if path in chain:
-                trail = " -> ".join([*chain, path])
-                raise NotFoundError(f"snippet include cycle: {trail}")
-            if len(chain) >= _MAX_INCLUDE_DEPTH:
-                trail = " -> ".join([*chain, path])
-                raise NotFoundError(
-                    f"snippet include depth exceeded ({_MAX_INCLUDE_DEPTH}): {trail}"
-                )
-            return expand(load_snippet(repo_root, path), [*chain, path])
-
-        return _SNIPPET_INCLUDE.sub(repl, text)
-
-    return expand(text, [])
+    return _expand_includes(repo_root, text, [])
 
 
 def substitute(text: str, args: list[str], kv: dict[str, str]) -> str:

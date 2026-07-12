@@ -11,11 +11,12 @@ from familiar.lint import (
     lint_all,
     lint_collection,
     lint_invocation,
+    lint_snippet_collection,
     lint_snippet_references,
     lint_template,
     load_linters,
 )
-from familiar.render import NotFoundError
+from familiar.render import _MAX_INCLUDE_DEPTH, NotFoundError
 
 
 class TestLintTemplate:
@@ -419,3 +420,180 @@ class TestLintSnippetReferences:
             if "snippet not found" in m.message and "bad.md" in m.file
         ]
         assert len(snippet_errors) == 1
+
+    def test_transitive_missing_reference(self, tmp_path):
+        """a valid include whose child references a missing snippet is caught."""
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "outer.txt").write_text("{{> snippet:test/missing.txt}}")
+
+        content = "prefix {{> snippet:test/outer.txt}} suffix"
+        messages = lint_snippet_references(tmp_path, content, "test.md")
+        assert len(messages) == 1
+        assert messages[0].level == "error"
+        assert messages[0].line == 1
+        assert "test/missing.txt" in messages[0].message
+
+    def test_valid_transitive_include_no_error(self, tmp_path):
+        """a chain of valid includes produces no false positives."""
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "outer.txt").write_text("outer[{{> snippet:test/inner.txt}}]")
+        (snippet_dir / "inner.txt").write_text("INNER")
+
+        content = "{{> snippet:test/outer.txt}}"
+        messages = lint_snippet_references(tmp_path, content, "test.md")
+        assert messages == []
+
+    def test_self_cycle_detected(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "loop.txt").write_text("{{> snippet:test/loop.txt}}")
+
+        content = "{{> snippet:test/loop.txt}}"
+        messages = lint_snippet_references(tmp_path, content, "test.md")
+        assert len(messages) == 1
+        assert messages[0].level == "error"
+        assert "snippet include cycle" in messages[0].message
+        assert "test/loop.txt -> test/loop.txt" in messages[0].message
+
+    def test_mutual_cycle_detected_and_anchored(self, tmp_path):
+        """an a->b->a cycle is reported at the top-level directive's line."""
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "a.txt").write_text("{{> snippet:test/b.txt}}")
+        (snippet_dir / "b.txt").write_text("{{> snippet:test/a.txt}}")
+
+        content = "line one\n{{> snippet:test/a.txt}}"
+        messages = lint_snippet_references(tmp_path, content, "test.md")
+        assert len(messages) == 1
+        assert messages[0].level == "error"
+        assert messages[0].line == 2
+        assert "snippet include cycle" in messages[0].message
+        assert "test/a.txt" in messages[0].message
+        assert "test/b.txt" in messages[0].message
+
+    def test_depth_exceeded_detected(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        chain_len = _MAX_INCLUDE_DEPTH + 2
+        for i in range(chain_len):
+            if i < chain_len - 1:
+                body = "{{> snippet:test/s" + str(i + 1) + ".txt}}"
+            else:
+                body = "end"
+            (snippet_dir / f"s{i}.txt").write_text(body)
+
+        content = "{{> snippet:test/s0.txt}}"
+        messages = lint_snippet_references(tmp_path, content, "test.md")
+        assert len(messages) == 1
+        assert messages[0].level == "error"
+        assert "depth exceeded" in messages[0].message
+
+    def test_duplicate_include_no_false_cycle(self, tmp_path):
+        """including the same valid snippet twice is not a cycle."""
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "shared.txt").write_text("shared")
+
+        content = "{{> snippet:test/shared.txt}} {{> snippet:test/shared.txt}}"
+        messages = lint_snippet_references(tmp_path, content, "test.md")
+        assert messages == []
+
+    def test_diamond_include_no_false_cycle(self, tmp_path):
+        """a snippet pulling the same leaf twice (diamond) is not a cycle."""
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "top.txt").write_text(
+            "{{> snippet:test/leaf.txt}} {{> snippet:test/leaf.txt}}"
+        )
+        (snippet_dir / "leaf.txt").write_text("LEAF")
+
+        content = "{{> snippet:test/top.txt}}"
+        messages = lint_snippet_references(tmp_path, content, "test.md")
+        assert messages == []
+
+
+class TestLintSnippetCollection:
+    """tests for linting the snippet collection itself."""
+
+    def test_builtins_clean(self, tmp_path):
+        messages = lint_snippet_collection(tmp_path)
+        assert messages == []
+
+    def test_broken_include_in_local_snippet(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "broken.txt").write_text("{{> snippet:test/gone.txt}}")
+
+        messages = lint_snippet_collection(tmp_path)
+        broken = [m for m in messages if "test/broken.txt" in m.file]
+        assert len(broken) == 1
+        assert broken[0].level == "error"
+        assert broken[0].file == ".familiar/snippets/test/broken.txt"
+        assert "test/gone.txt" in broken[0].message
+
+    def test_transitive_break_in_local_snippet(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "a.txt").write_text("{{> snippet:test/b.txt}}")
+        (snippet_dir / "b.txt").write_text("{{> snippet:test/missing.txt}}")
+
+        messages = lint_snippet_collection(tmp_path)
+        a_errors = [m for m in messages if m.file == ".familiar/snippets/test/a.txt"]
+        assert len(a_errors) == 1
+        assert "test/missing.txt" in a_errors[0].message
+
+    def test_cycle_in_local_snippet_collection(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "cyc"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "a.txt").write_text("{{> snippet:cyc/b.txt}}")
+        (snippet_dir / "b.txt").write_text("{{> snippet:cyc/a.txt}}")
+
+        messages = lint_snippet_collection(tmp_path)
+        cyc = [m for m in messages if "snippet include cycle" in m.message]
+        assert len(cyc) == 2
+        files = {m.file for m in cyc}
+        assert files == {
+            ".familiar/snippets/cyc/a.txt",
+            ".familiar/snippets/cyc/b.txt",
+        }
+
+    def test_lint_all_catches_broken_snippet_collection(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "broken.txt").write_text("{{> snippet:test/gone.txt}}")
+
+        messages = lint_all(tmp_path)
+        errs = [
+            m
+            for m in messages
+            if "test/broken.txt" in m.file and "snippet not found" in m.message
+        ]
+        assert len(errs) == 1
+
+    def test_load_failure_reports_error(self, tmp_path):
+        """a snippet that lists but then fails to load produces a lint error."""
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "ok.txt").write_text("fine")
+
+        from familiar import lint as _lint_mod
+
+        original = _lint_mod.load_snippet
+
+        def patched(repo_root, path):
+            if path == "test/ok.txt":
+                raise NotFoundError("simulated read failure")
+            return original(repo_root, path)
+
+        with patch.object(_lint_mod, "load_snippet", side_effect=patched):
+            messages = lint_snippet_collection(tmp_path)
+
+        load_errors = [
+            m
+            for m in messages
+            if "test/ok.txt" in m.file and "failed to load" in m.message
+        ]
+        assert len(load_errors) == 1
+        assert load_errors[0].level == "error"
