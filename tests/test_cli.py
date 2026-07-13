@@ -300,6 +300,35 @@ class TestCmdConjure:
         with pytest.raises(CliError, match="invalid subagent name"):
             cmd_conjure(args)
 
+    def test_dry_run_prints_output(self, tmp_path, capsys):
+        args = argparse.Namespace(
+            agent="claude",
+            conjurings=["python"],
+            into=str(tmp_path),
+            dry_run=True,
+            save_subagent=False,
+            subagent_name=None,
+        )
+        result = cmd_conjure(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "CLAUDE.md" in captured.out
+        assert "python" in captured.out.lower()
+
+    def test_dry_run_does_not_write(self, tmp_path):
+        args = argparse.Namespace(
+            agent="claude",
+            conjurings=["python"],
+            into=str(tmp_path),
+            dry_run=True,
+            save_subagent=True,
+            subagent_name=None,
+        )
+        result = cmd_conjure(args)
+        assert result == 0
+        assert not (tmp_path / "CLAUDE.md").exists()
+        assert not (tmp_path / ".claude").exists()
+
 
 class TestCmdInvoke:
     """tests for invoke command."""

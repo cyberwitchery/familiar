@@ -248,6 +248,10 @@ def cmd_conjure(args: argparse.Namespace) -> int:
             str(e),
             hint="run 'familiar list conjurings' to see available options",
         )
+    if getattr(args, "dry_run", False):
+        dest = repo_root / _resolve_agent(args.agent).output_file
+        print(f"would write {dest}:\n\n{system.strip()}")
+        return EXIT_SUCCESS
     write_instruction(repo_root, args.agent, system)
     if getattr(args, "save_subagent", False):
         subagent_name = getattr(args, "subagent_name", None) or "_".join(
@@ -417,6 +421,11 @@ def main() -> None:
         "conjurings", nargs="+", help="conjuring names, e.g. rust infra sec"
     )
     conjure.add_argument("--into", help="target repo path (default: current directory)")
+    conjure.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print what would be written and exit",
+    )
     conjure.add_argument(
         "--save-subagent",
         action="store_true",

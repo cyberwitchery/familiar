@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `familiar conjure` now accepts `--dry-run`, which prints the instruction file's target path and rendered content and exits without writing anything, mirroring `familiar invoke --dry-run`
 - `familiar lint` now follows snippet includes transitively: a conjuring or invocation that pulls in a snippet whose own body has a broken, cyclic, or too-deeply-nested include is reported at lint time instead of only failing later at `conjure`/`invoke`
 - `familiar lint` now checks the snippet collection itself, so a broken or cyclic snippet-to-snippet include is caught even when nothing references it yet
 

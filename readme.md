@@ -37,6 +37,12 @@ conjure conjurings to create system instructions for an agent:
 familiar conjure codex rust infra sec
 ```
 
+preview what a conjure would write without touching the filesystem:
+
+```bash
+familiar conjure claude python sec --dry-run
+```
+
 save composed conjurings as a reusable subagent:
 
 ```bash

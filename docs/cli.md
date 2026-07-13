@@ -5,7 +5,7 @@
 compose system instructions for an agent.
 
 ```
-familiar conjure <agent> <conjurings...> [--into <path>]
+familiar conjure <agent> <conjurings...> [--into <path>] [--dry-run]
 ```
 
 **arguments:**
@@ -20,6 +20,7 @@ familiar conjure <agent> <conjurings...> [--into <path>]
 | option | description |
 |--------|-------------|
 | `--into` | target repository path (default: current directory) |
+| `--dry-run` | print what would be written (with its target path) and exit without touching the filesystem |
 | `--save-subagent` | write composed conjurings as a reusable subagent |
 | `--subagent-name` | override subagent name (default: joined conjuring names) |
 
@@ -27,6 +28,7 @@ familiar conjure <agent> <conjurings...> [--into <path>]
 
 - combines core profile with specified conjurings
 - writes `AGENTS.md` (codex) or `CLAUDE.md` (claude) to repo root
+- with `--dry-run`, prints the instruction file's target path and rendered content, then exits without writing anything
 - with `--save-subagent`, also writes a subagent file:
     - claude: `.claude/subagents/<name>/AGENT.md`
     - codex: `.codex/subagents/<name>/AGENT.md`
@@ -39,6 +41,9 @@ familiar conjure codex rust sec
 
 # python project, different directory
 familiar conjure claude python --into /path/to/repo
+
+# preview what would be written without touching the filesystem
+familiar conjure claude python sec --dry-run
 
 # export conjurings as subagents
 familiar conjure claude python sec --save-subagent
