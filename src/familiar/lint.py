@@ -49,7 +49,7 @@ _INPUTS_SECTION = re.compile(
     r"^(##\s+)?(inputs?|arguments?)(\s*\([^)]+\))?:?\s*$", re.IGNORECASE | re.MULTILINE
 )
 _OUTPUT_SECTION = re.compile(
-    r"^(##\s+)?(output|deliverables?):?\s*$", re.IGNORECASE | re.MULTILINE
+    r"^(##\s+)?(outputs?|deliverables?):?\s*$", re.IGNORECASE | re.MULTILINE
 )
 
 

@@ -151,6 +151,19 @@ deliverables
         output_warnings = [m for m in messages if "output" in m.message.lower()]
         assert output_warnings == []
 
+    def test_accepts_outputs_section(self):
+        content = """task: do something
+
+inputs
+- $ARGUMENTS
+
+outputs
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        output_warnings = [m for m in messages if "output" in m.message.lower()]
+        assert output_warnings == []
+
     def test_undocumented_placeholder_warning(self):
         content = """task: do something with {{myarg}}
 
