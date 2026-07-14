@@ -192,6 +192,67 @@ class TestComposeSystem:
         with pytest.raises(NotFoundError, match="unknown conjuring"):
             compose_system(tmp_path, ["nonexistent"])
 
+    def test_compose_expands_include(self, tmp_path):
+        """a conjuring with a valid snippet include is expanded, not left verbatim."""
+        templates = tmp_path / ".familiar" / "conjurings"
+        templates.mkdir(parents=True)
+        (templates / "core.md").write_text("CORE")
+        (templates / "guide.md").write_text("see {{> snippet:test/rules.txt}}")
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "rules.txt").write_text("be precise")
+
+        system = compose_system(tmp_path, ["guide"])
+        assert system == "CORE\n\nsee be precise"
+        assert "{{> snippet" not in system
+
+    def test_compose_expands_include_in_core(self, tmp_path):
+        """includes in the core conjuring are expanded too."""
+        templates = tmp_path / ".familiar" / "conjurings"
+        templates.mkdir(parents=True)
+        (templates / "core.md").write_text("core: {{> snippet:test/base.txt}}")
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "base.txt").write_text("BASE")
+
+        system = compose_system(tmp_path, [])
+        assert system == "core: BASE"
+
+    def test_compose_expands_nested_include(self, tmp_path):
+        """a snippet included by a conjuring may itself include other snippets."""
+        templates = tmp_path / ".familiar" / "conjurings"
+        templates.mkdir(parents=True)
+        (templates / "core.md").write_text("CORE")
+        (templates / "guide.md").write_text("{{> snippet:test/outer.txt}}")
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "outer.txt").write_text("outer[{{> snippet:test/inner.txt}}]")
+        (snippet_dir / "inner.txt").write_text("INNER")
+
+        system = compose_system(tmp_path, ["guide"])
+        assert system == "CORE\n\nouter[INNER]"
+
+    def test_compose_missing_snippet_raises(self, tmp_path):
+        templates = tmp_path / ".familiar" / "conjurings"
+        templates.mkdir(parents=True)
+        (templates / "core.md").write_text("CORE")
+        (templates / "guide.md").write_text("{{> snippet:test/missing.txt}}")
+
+        with pytest.raises(NotFoundError, match="unknown snippet"):
+            compose_system(tmp_path, ["guide"])
+
+    def test_compose_include_cycle_raises(self, tmp_path):
+        templates = tmp_path / ".familiar" / "conjurings"
+        templates.mkdir(parents=True)
+        (templates / "core.md").write_text("CORE")
+        (templates / "guide.md").write_text("{{> snippet:test/loop.txt}}")
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "loop.txt").write_text("{{> snippet:test/loop.txt}}")
+
+        with pytest.raises(NotFoundError, match="snippet include cycle"):
+            compose_system(tmp_path, ["guide"])
+
 
 class TestRenderInvocation:
     """tests for rendering invocations."""

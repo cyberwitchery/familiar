@@ -1,6 +1,6 @@
 # snippets
 
-snippets are reusable file templates that invocations can include by reference. they prevent drift and prompt bloat by keeping canonical file bodies in one place.
+snippets are reusable file templates that invocations and conjurings can include by reference. they prevent drift and prompt bloat by keeping canonical file bodies in one place.
 
 ## built-in snippets
 
@@ -29,7 +29,7 @@ snippets are reusable file templates that invocations can include by reference. 
 
 ## include syntax
 
-use `{{> snippet:path}}` inside invocations to include a snippet:
+use `{{> snippet:path}}` inside invocations or conjurings to include a snippet:
 
 ```markdown
 ## pyproject.toml structure
@@ -39,7 +39,7 @@ use `{{> snippet:path}}` inside invocations to include a snippet:
 ```
 ```
 
-includes are resolved before placeholder substitution, so snippets can contain `$1`, `$ARGUMENTS`, and `{{key}}` placeholders.
+in invocations, includes are resolved before placeholder substitution, so snippets can contain `$1`, `$ARGUMENTS`, and `{{key}}` placeholders. conjurings receive no placeholder substitution, so any such placeholders in a snippet included by a conjuring are left verbatim.
 
 a snippet may itself include other snippets; nested includes are expanded recursively. include cycles (a snippet that includes itself, directly or transitively) raise an error naming the chain rather than looping forever.
 
@@ -64,4 +64,4 @@ the same "local wins" precedence applies as with conjurings and invocations.
 
 `familiar lint` validates snippet references:
 
-- **error** if an invocation references a snippet that doesn't exist
+- **error** if an invocation or conjuring references a snippet that doesn't exist

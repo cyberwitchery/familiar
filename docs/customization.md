@@ -87,7 +87,7 @@ familiar invoke codex add-endpoint "GET /users/{id}"
 
 ## snippet includes
 
-invocations can include reusable file templates (snippets) by reference:
+invocations and conjurings can include reusable file templates (snippets) by reference:
 
 ```markdown
 task: bootstrap a python project
@@ -99,7 +99,7 @@ task: bootstrap a python project
 ```
 ```
 
-snippet includes are resolved before placeholder substitution, so snippets can contain `$1`, `{{key}}`, etc.
+in invocations, snippet includes are resolved before placeholder substitution, so snippets can contain `$1`, `{{key}}`, etc. conjurings do no placeholder substitution, so those placeholders are left verbatim there.
 
 see [snippets](snippets.md) for the full list of built-in snippets.
 
