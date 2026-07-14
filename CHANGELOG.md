@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `familiar conjure` now expands `{{> snippet:...}}` includes in conjurings (core and selected) instead of writing them verbatim into the generated instruction file, matching the include support invocations already had and the references `familiar lint` already validates
 - `familiar lint` now follows snippet includes transitively: a conjuring or invocation that pulls in a snippet whose own body has a broken, cyclic, or too-deeply-nested include is reported at lint time instead of only failing later at `conjure`/`invoke`
 - `familiar lint` now checks the snippet collection itself, so a broken or cyclic snippet-to-snippet include is caught even when nothing references it yet
 

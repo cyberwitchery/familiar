@@ -248,11 +248,18 @@ def list_items(repo_root: Path, kind: str) -> list[tuple[str, str, bool]]:
 
 
 def compose_system(repo_root: Path, conjurings: list[str]) -> str:
-    """compose system instructions from core + selected conjurings."""
+    """compose system instructions from core + selected conjurings.
+
+    snippet includes ({{> snippet:path}}) in the core text and in each
+    conjuring are expanded, mirroring :func:`render_invocation`. conjurings
+    receive no placeholder substitution, so any $N/{{key}} in an included
+    snippet is left verbatim.
+    """
     core = load_text(repo_root, "conjurings", "core").strip()
-    parts: list[str] = [core]
+    parts: list[str] = [resolve_includes(repo_root, core)]
     for name in conjurings:
-        parts.append(load_text(repo_root, "conjurings", name).strip())
+        text = load_text(repo_root, "conjurings", name).strip()
+        parts.append(resolve_includes(repo_root, text))
     return "\n\n".join(parts)
 
 
