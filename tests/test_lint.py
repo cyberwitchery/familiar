@@ -12,6 +12,7 @@ from familiar.lint import (
     lint_collection,
     lint_invocation,
     lint_snippet_collection,
+    lint_snippet_placeholders,
     lint_snippet_references,
     lint_template,
     load_linters,
@@ -610,3 +611,93 @@ class TestLintSnippetCollection:
         ]
         assert len(load_errors) == 1
         assert load_errors[0].level == "error"
+
+
+class TestLintSnippetPlaceholders:
+    """tests for placeholder checks on include-expanded invocation text."""
+
+    def test_snippet_positional_undocumented_warns(self, tmp_path):
+        snippets = tmp_path / ".familiar" / "snippets" / "test"
+        snippets.mkdir(parents=True)
+        (snippets / "body.txt").write_text("run the tool with $1")
+
+        content = (
+            "task: demo\n\ninputs\n- $ARGUMENTS: stuff\n\n"
+            "{{> snippet:test/body.txt}}\n\noutput\n- results\n"
+        )
+        messages = lint_snippet_placeholders(tmp_path, content, "demo.md")
+        warns = [m for m in messages if "$1" in m.message]
+        assert len(warns) == 1
+        assert warns[0].level == "warning"
+        assert warns[0].line is None
+
+    def test_snippet_named_undocumented_warns(self, tmp_path):
+        snippets = tmp_path / ".familiar" / "snippets" / "test"
+        snippets.mkdir(parents=True)
+        (snippets / "body.txt").write_text("mode is {{key}}")
+
+        content = (
+            "task: demo\n\ninputs\n- $ARGUMENTS: stuff\n\n"
+            "{{> snippet:test/body.txt}}\n\noutput\n- results\n"
+        )
+        messages = lint_snippet_placeholders(tmp_path, content, "demo.md")
+        warns = [m for m in messages if "{{key}}" in m.message]
+        assert len(warns) == 1
+        assert warns[0].level == "warning"
+
+    def test_snippet_named_documented_no_warn(self, tmp_path):
+        snippets = tmp_path / ".familiar" / "snippets" / "test"
+        snippets.mkdir(parents=True)
+        (snippets / "body.txt").write_text("mode is {{key}}")
+
+        content = (
+            "task: demo\n\ninputs\n- key (required): the mode\n\n"
+            "{{> snippet:test/body.txt}}\n\noutput\n- results\n"
+        )
+        messages = lint_snippet_placeholders(tmp_path, content, "demo.md")
+        assert messages == []
+
+    def test_placeholder_in_raw_and_snippet_not_double_reported(self, tmp_path):
+        snippets = tmp_path / ".familiar" / "snippets" / "test"
+        snippets.mkdir(parents=True)
+        (snippets / "body.txt").write_text("also uses {{key}}")
+
+        invocations = tmp_path / ".familiar" / "invocations"
+        invocations.mkdir(parents=True)
+        (invocations / "demo.md").write_text(
+            "task: demo with {{key}}\n\ninputs\n- $ARGUMENTS: stuff\n\n"
+            "{{> snippet:test/body.txt}}\n\noutput\n- results\n"
+        )
+
+        messages = lint_collection(tmp_path, "invocations", lint_invocation, [])
+        warns = [m for m in messages if "{{key}}" in m.message and "demo.md" in m.file]
+        assert len(warns) == 1
+
+    def test_broken_include_reported_once(self, tmp_path):
+        invocations = tmp_path / ".familiar" / "invocations"
+        invocations.mkdir(parents=True)
+        (invocations / "demo.md").write_text(
+            "task: demo\n\ninputs\n- $ARGUMENTS: stuff\n\n"
+            "{{> snippet:missing/gone.txt}}\n\noutput\n- results\n"
+        )
+
+        messages = lint_collection(tmp_path, "invocations", lint_invocation, [])
+        errors = [
+            m
+            for m in messages
+            if "snippet not found" in m.message and "demo.md" in m.file
+        ]
+        assert len(errors) == 1
+
+    def test_conjuring_snippet_placeholder_not_checked(self, tmp_path):
+        snippets = tmp_path / ".familiar" / "snippets" / "test"
+        snippets.mkdir(parents=True)
+        (snippets / "body.txt").write_text("mode is {{key}}")
+
+        conjurings = tmp_path / ".familiar" / "conjurings"
+        conjurings.mkdir(parents=True)
+        (conjurings / "demo.md").write_text("# demo\n\n{{> snippet:test/body.txt}}\n")
+
+        messages = lint_collection(tmp_path, "conjurings", lint_template, [])
+        warns = [m for m in messages if "may not be documented" in m.message]
+        assert warns == []

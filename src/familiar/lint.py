@@ -17,6 +17,7 @@ from .render import (
     list_snippets,
     load_snippet,
     load_text,
+    resolve_includes,
 )
 
 
@@ -87,6 +88,61 @@ def lint_template(content: str, name: str) -> list[LintMessage]:
     return messages
 
 
+def _check_placeholder_docs(
+    positional: set[str], named: set[str], doc_content: str, name: str
+) -> list[LintMessage]:
+    """warn about placeholders not documented in ``doc_content``'s inputs section."""
+    messages: list[LintMessage] = []
+
+    # loose check: prefer the inputs section if it exists, else the whole file
+    inputs_match = _INPUTS_SECTION.search(doc_content)
+    if inputs_match:
+        start = inputs_match.end()
+        # look ahead for the next markdown heading or end of file
+        next_heading = re.search(r"^#", doc_content[start:], re.MULTILINE)
+        search_area = (
+            doc_content[start : start + next_heading.start()]
+            if next_heading
+            else doc_content[start:]
+        ).lower()
+    else:
+        search_area = doc_content.lower()
+
+    for placeholder in named:
+        tag = f"{{{{{placeholder.lower()}}}}}"
+        stripped = search_area.replace(tag, "")
+        # accept the placeholder as documented if its bare name appears as a
+        # standalone word (after stripping {{…}} syntax) OR if the {{…}} tag
+        # itself appears in the inputs section (the common "- {{name}}: …"
+        # documentation pattern).
+        bare_match = re.search(r"\b" + re.escape(placeholder.lower()) + r"\b", stripped)
+        if not bare_match and tag not in search_area:
+            messages.append(
+                LintMessage(
+                    level="warning",
+                    file=name,
+                    line=None,
+                    message=f"placeholder '{{{{{placeholder}}}}}' may not be documented in inputs",
+                )
+            )
+
+    for p in positional:
+        if p == "ARGUMENTS":
+            continue
+        pattern = rf"(\w+[:\s]+\${p}|\${p}\s+[`\w]|\${p}\s*\()"
+        if not re.search(pattern, search_area):
+            messages.append(
+                LintMessage(
+                    level="warning",
+                    file=name,
+                    line=None,
+                    message=f"placeholder '${p}' may not be documented in inputs",
+                )
+            )
+
+    return messages
+
+
 def lint_invocation(content: str, name: str) -> list[LintMessage]:
     """lint an invocation file.
 
@@ -143,52 +199,7 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
 
     positional = set(_POSITIONAL_PLACEHOLDER.findall(content))
     named = set(_NAMED_PLACEHOLDER.findall(content))
-
-    # loose check: prefer the inputs section if it exists, else the whole file
-    inputs_match = _INPUTS_SECTION.search(content)
-    if inputs_match:
-        start = inputs_match.end()
-        # look ahead for the next markdown heading or end of file
-        next_heading = re.search(r"^#", content[start:], re.MULTILINE)
-        search_area = (
-            content[start : start + next_heading.start()]
-            if next_heading
-            else content[start:]
-        ).lower()
-    else:
-        search_area = content.lower()
-
-    for placeholder in named:
-        tag = f"{{{{{placeholder.lower()}}}}}"
-        stripped = search_area.replace(tag, "")
-        # accept the placeholder as documented if its bare name appears as a
-        # standalone word (after stripping {{…}} syntax) OR if the {{…}} tag
-        # itself appears in the inputs section (the common "- {{name}}: …"
-        # documentation pattern).
-        bare_match = re.search(r"\b" + re.escape(placeholder.lower()) + r"\b", stripped)
-        if not bare_match and tag not in search_area:
-            messages.append(
-                LintMessage(
-                    level="warning",
-                    file=name,
-                    line=None,
-                    message=f"placeholder '{{{{{placeholder}}}}}' may not be documented in inputs",
-                )
-            )
-
-    for p in positional:
-        if p == "ARGUMENTS":
-            continue
-        pattern = rf"(\w+[:\s]+\${p}|\${p}\s+[`\w]|\${p}\s*\()"
-        if not re.search(pattern, search_area):
-            messages.append(
-                LintMessage(
-                    level="warning",
-                    file=name,
-                    line=None,
-                    message=f"placeholder '${p}' may not be documented in inputs",
-                )
-            )
+    messages.extend(_check_placeholder_docs(positional, named, content, name))
 
     return messages
 
@@ -281,6 +292,31 @@ def lint_snippet_collection(repo_root: Path) -> list[LintMessage]:
     return messages
 
 
+def lint_snippet_placeholders(
+    repo_root: Path, content: str, name: str
+) -> list[LintMessage]:
+    """check placeholders that included snippets contribute to an invocation.
+
+    the renderer expands includes before substituting, so a ``$1``/``{{key}}``
+    inside an included snippet is live at invoke time but invisible to the
+    raw-text check in :func:`lint_invocation`. only the snippet-contributed
+    delta is checked here; broken or cyclic includes are left to
+    :func:`lint_snippet_references`.
+    """
+    try:
+        expanded = resolve_includes(repo_root, content)
+    except NotFoundError:
+        return []
+
+    positional = set(_POSITIONAL_PLACEHOLDER.findall(expanded)) - set(
+        _POSITIONAL_PLACEHOLDER.findall(content)
+    )
+    named = set(_NAMED_PLACEHOLDER.findall(expanded)) - set(
+        _NAMED_PLACEHOLDER.findall(content)
+    )
+    return _check_placeholder_docs(positional, named, content, name)
+
+
 def lint_collection(
     repo_root: Path,
     kind: Literal["conjurings", "invocations"],
@@ -299,6 +335,8 @@ def lint_collection(
             )
             messages.extend(builtin_linter(content, prefix))
             messages.extend(lint_snippet_references(repo_root, content, prefix))
+            if kind == "invocations":
+                messages.extend(lint_snippet_placeholders(repo_root, content, prefix))
             for linter in plugin_linters:
                 try:
                     messages.extend(linter(content, prefix))
