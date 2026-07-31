@@ -52,7 +52,7 @@ invocations in `.familiar/invocations/*.md` or built-ins.
 
 ## placeholder detection
 
-the linter checks that placeholders are documented in the file. it prioritizes searching the `inputs` or `arguments` section if one exists.
+the linter checks that placeholders are documented in the file. it prioritizes searching the `inputs` or `arguments` section if one exists. snippet includes are expanded first, so a placeholder that only appears inside an included snippet is still checked.
 
 **positional placeholders:** `$1`, `$2`, ..., `$ARGUMENTS`
 

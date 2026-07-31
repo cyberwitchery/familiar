@@ -119,8 +119,8 @@ def create_worktree(repo_root: Path) -> Path:
         )
 
     tmpdir = tempfile.mkdtemp(prefix="familiar-")
-    # git worktree add requires the directory to NOT exist.
-    # mkdtemp creates it. let's remove it and let git create it.
+    # git worktree add requires the target to not exist, so remove the
+    # mkdtemp-created directory and let git create it
     os.rmdir(tmpdir)
 
     try:

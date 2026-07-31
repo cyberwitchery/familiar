@@ -8,7 +8,7 @@ pip install familiar-cli
 
 ## basic workflow
 
-familiar has three main commands: `conjure`, `invoke`, and `list`.
+familiar has four commands: `conjure`, `invoke`, `list`, and `lint`.
 
 ### conjure
 
@@ -72,7 +72,18 @@ familiar list conjurings
 familiar list invocations -v
 ```
 
-omit `kind` to list both. use `-v` to see descriptions. local overrides are marked with `(local)`.
+omit `kind` to list everything. use `-v` to see descriptions. local overrides are marked with `(local)`.
+
+### lint
+
+`lint` validates conjurings and invocations, including local `.familiar/` overrides:
+
+```bash
+familiar lint
+familiar lint --errors-only
+```
+
+see [linting](linting.md) for the rules.
 
 ## supported agents
 

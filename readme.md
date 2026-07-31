@@ -17,18 +17,21 @@ pip install familiar-cli
 ## usage
 
 ```
-usage: familiar [-h] {conjure,invoke,list} ...
+usage: familiar [-h] [--version] [--debug] {conjure,invoke,list,lint} ...
 
 conjure and invoke familiars
 
 positional arguments:
-  {conjure,invoke,list}
+  {conjure,invoke,list,lint}
     conjure             compose system instructions for an agent
     invoke              render an invocation and run the agent
-    list                list available conjurings or invocations
+    list                list available conjurings and invocations
+    lint                lint conjurings and invocations
 
 options:
   -h, --help            show this help message and exit
+  --version             show program's version number and exit
+  --debug               show full traceback on error
 ```
 
 conjure conjurings to create system instructions for an agent:
@@ -67,6 +70,12 @@ list available conjurings and invocations:
 
 ```
 familiar list
+```
+
+lint conjurings and invocations, including local `.familiar/` overrides:
+
+```
+familiar lint
 ```
 
 ## customization

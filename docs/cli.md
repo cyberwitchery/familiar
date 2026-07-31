@@ -12,7 +12,7 @@ familiar conjure <agent> <conjurings...> [--into <path>]
 
 | argument | description |
 |----------|-------------|
-| `agent` | target agent: `codex` or `claude` |
+| `agent` | target agent: `codex`, `claude`, or any plugin-provided agent |
 | `conjurings` | one or more profile names |
 
 **options:**
@@ -58,7 +58,7 @@ familiar invoke <agent> <invocation> [--into <path>] [--headless] [--kv <key=val
 
 | argument | description |
 |----------|-------------|
-| `agent` | target agent: `codex` or `claude` |
+| `agent` | target agent: `codex`, `claude`, or any plugin-provided agent |
 | `invocation` | invocation name |
 | `args` | positional arguments for the invocation |
 
