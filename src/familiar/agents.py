@@ -61,7 +61,7 @@ class CodexAgent(Agent):
             if auto:
                 cmd.append("--full-auto")
             cmd.extend(["exec", "--skip-git-repo-check", "-C", str(repo_root), "-"])
-            proc = subprocess.run(cmd, input=prompt, text=True)
+            proc = subprocess.run(cmd, input=prompt, text=True, check=False)
             return proc.returncode
         else:
             cmd = ["codex"]
@@ -108,7 +108,8 @@ def load_agents() -> dict[str, Agent]:
         try:
             instance = cls()
             agents[instance.name] = instance
-        except Exception as e:
+        # a broken agent plugin must not take down the cli
+        except Exception as e:  # noqa: BLE001
             warnings.warn(
                 f"failed to load agent plugin '{cls.__name__}': {e}",
                 stacklevel=2,

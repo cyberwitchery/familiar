@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Literal
+from typing import Literal
 
 from ._plugins import load_plugins
-
 from .render import (
     _SNIPPET_INCLUDE,
     NotFoundError,
@@ -340,7 +340,8 @@ def lint_collection(
             for linter in plugin_linters:
                 try:
                     messages.extend(linter(content, prefix))
-                except Exception as e:
+                # a broken plugin linter is reported, not fatal to the run
+                except Exception as e:  # noqa: BLE001
                     messages.append(
                         LintMessage(
                             level="error",

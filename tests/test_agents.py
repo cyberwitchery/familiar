@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 import familiar.agents as agents_module
 from familiar.agents import (
     Agent,
-    CodexAgent,
     ClaudeAgent,
-    load_agents,
-    get_agents,
+    CodexAgent,
     get_agent,
+    get_agents,
+    load_agents,
 )
 
 

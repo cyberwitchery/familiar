@@ -39,8 +39,8 @@ from familiar.agents import Agent
 class MyAgent(Agent):
     """Agent that uses the my-cli tool."""
 
-    name = "myagent"           # CLI name: familiar invoke myagent ...
-    output_file = "MYAGENT.md" # where conjure writes instructions
+    name = "myagent"  # CLI name: familiar invoke myagent ...
+    output_file = "MYAGENT.md"  # where conjure writes instructions
 
     def run(self, repo_root: Path, prompt: str, headless: bool) -> int:
         """Run the agent with the given prompt.
@@ -141,8 +141,7 @@ familiar lint  # your rules now run
 linters are callables with signature:
 
 ```python
-def my_linter(content: str, name: str) -> list[LintMessage]:
-    ...
+def my_linter(content: str, name: str) -> list[LintMessage]: ...
 ```
 
 | parameter | type | description |
@@ -156,6 +155,7 @@ def my_linter(content: str, name: str) -> list[LintMessage]:
 ```python
 from dataclasses import dataclass
 from typing import Literal
+
 
 @dataclass
 class LintMessage:
