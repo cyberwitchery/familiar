@@ -23,6 +23,7 @@ class TestConjureIntegration:
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0
         assert "wrote instructions for claude" in result.stdout
@@ -47,6 +48,7 @@ class TestConjureIntegration:
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0
 
@@ -70,6 +72,7 @@ class TestConjureIntegration:
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode != 0
         assert "unknown conjuring" in result.stderr
@@ -92,6 +95,7 @@ class TestInvokeIntegration:
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode != 0
         assert "unknown invocation" in result.stderr
@@ -112,6 +116,7 @@ class TestInvokeIntegration:
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode != 0
         assert "invalid argument" in result.stderr
@@ -130,6 +135,7 @@ class TestInvokeIntegration:
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode != 0
         assert "hint:" in result.stderr
@@ -143,6 +149,7 @@ class TestHelpIntegration:
             [sys.executable, "-m", "familiar.cli", "--help"],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0
         assert "conjure" in result.stdout
@@ -154,6 +161,7 @@ class TestHelpIntegration:
             [sys.executable, "-m", "familiar.cli", "conjure", "--help"],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0
         assert "conjurings" in result.stdout
@@ -163,6 +171,7 @@ class TestHelpIntegration:
             [sys.executable, "-m", "familiar.cli", "invoke", "--help"],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0
         assert "invocation" in result.stdout
@@ -173,6 +182,7 @@ class TestHelpIntegration:
             [sys.executable, "-m", "familiar.cli", "list", "--help"],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0
         assert "conjurings" in result.stdout
@@ -187,6 +197,7 @@ class TestListIntegration:
             [sys.executable, "-m", "familiar.cli", "list"],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0
         assert "conjurings:" in result.stdout
@@ -200,6 +211,7 @@ class TestListIntegration:
             [sys.executable, "-m", "familiar.cli", "list", "conjurings"],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0
         assert "core" in result.stdout
@@ -211,6 +223,7 @@ class TestListIntegration:
             [sys.executable, "-m", "familiar.cli", "list", "invocations"],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0
         assert "explain" in result.stdout
@@ -221,6 +234,7 @@ class TestListIntegration:
             [sys.executable, "-m", "familiar.cli", "list", "conjurings", "-v"],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0
         assert ":" in result.stdout
@@ -242,6 +256,7 @@ class TestListIntegration:
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0
         assert "custom (local)" in result.stdout
@@ -251,6 +266,7 @@ class TestListIntegration:
             [sys.executable, "-m", "familiar.cli", "list", "snippets"],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0
         assert "python/pyproject.toml" in result.stdout
@@ -297,6 +313,7 @@ class TestLintIntegration:
             [sys.executable, "-m", "familiar.cli", "lint", "--into", str(tmp_path)],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0
         assert "all checks passed" in result.stdout
@@ -310,6 +327,7 @@ class TestLintIntegration:
             [sys.executable, "-m", "familiar.cli", "lint", "--into", str(tmp_path)],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0  # warnings don't cause failure
         assert "warning" in result.stderr
@@ -332,6 +350,7 @@ class TestLintIntegration:
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0
         assert "all checks passed" in result.stdout  # no errors, warnings filtered
@@ -341,6 +360,7 @@ class TestLintIntegration:
             [sys.executable, "-m", "familiar.cli", "lint", "--help"],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0
         assert "--errors-only" in result.stdout

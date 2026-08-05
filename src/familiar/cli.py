@@ -14,7 +14,7 @@ import warnings
 from importlib.metadata import version
 from pathlib import Path
 
-from .agents import Agent, get_agents, get_agent
+from .agents import Agent, get_agent, get_agents
 from .lint import lint_all
 from .render import (
     NotFoundError,
@@ -46,7 +46,7 @@ def _agent_hint() -> str:
     return f"valid agents: {', '.join(get_agents().keys())}"
 
 
-def _resolve_agent(name: str) -> "Agent":
+def _resolve_agent(name: str) -> Agent:
     """look up an agent by name, raising CliError on unknown names."""
     try:
         return get_agent(name)
@@ -94,6 +94,7 @@ def _remove_worktree(repo_root: Path, worktree_path: Path) -> None:
                 str(worktree_path),
             ],
             capture_output=True,
+            check=False,
         )
         if result.returncode != 0:
             stderr = result.stderr.decode(errors="replace").strip()
@@ -509,7 +510,8 @@ def main() -> None:
         if e.hint:
             print(f"hint: {e.hint}", file=sys.stderr)
         raise SystemExit(e.exit_code)
-    except Exception as e:
+    # top-level handler: any unexpected error becomes an exit code, not a traceback
+    except Exception as e:  # noqa: BLE001
         if args.debug:
             traceback.print_exc()
         print(f"error: {e}", file=sys.stderr)

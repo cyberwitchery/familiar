@@ -2,28 +2,29 @@
 
 from __future__ import annotations
 
-import pytest
+import argparse
 import subprocess
 from unittest.mock import patch
-import argparse
+
+import pytest
 
 from familiar.cli import (
+    CliError,
     _remove_worktree,
     _resolve_agent,
     _write_file,
-    find_repo_root,
+    cmd_conjure,
+    cmd_invoke,
+    cmd_lint,
+    cmd_list,
     create_worktree,
+    find_repo_root,
+    main,
+    parse_kv,
+    run_agent,
     write_instruction,
     write_skill,
     write_subagent,
-    parse_kv,
-    run_agent,
-    main,
-    cmd_conjure,
-    cmd_invoke,
-    cmd_list,
-    cmd_lint,
-    CliError,
 )
 
 
@@ -31,9 +32,11 @@ class TestVersion:
     """tests for --version flag."""
 
     def test_version_prints_and_exits(self, capsys):
-        with pytest.raises(SystemExit, match="0"):
-            with patch("sys.argv", ["familiar", "--version"]):
-                main()
+        with (
+            pytest.raises(SystemExit, match="0"),
+            patch("sys.argv", ["familiar", "--version"]),
+        ):
+            main()
         captured = capsys.readouterr()
         assert "familiar" in captured.out
         # version string should look like a semver
@@ -44,32 +47,32 @@ class TestCreateWorktree:
     """tests for git worktree creation."""
 
     def test_create_worktree_success(self, tmp_path):
-        with patch("subprocess.run") as mock_run:
+        # We need to mock os.rmdir because the tmpdir won't actually exist
+        with patch("subprocess.run") as mock_run, patch("os.rmdir"):
             # mock_run needs to be called twice: once for rev-parse, once for worktree add
             mock_run.return_value = argparse.Namespace(returncode=0)
 
-            # We need to mock os.rmdir because the tmpdir won't actually exist
-            with patch("os.rmdir"):
-                result = create_worktree(tmp_path)
-                assert "familiar-" in str(result)
-                assert mock_run.call_count == 2
+            result = create_worktree(tmp_path)
+            assert "familiar-" in str(result)
+            assert mock_run.call_count == 2
 
     def test_create_worktree_not_git_raises(self, tmp_path):
-        with patch("subprocess.run", side_effect=FileNotFoundError):
-            with pytest.raises(CliError, match="not a git repository"):
-                create_worktree(tmp_path)
+        with (
+            patch("subprocess.run", side_effect=FileNotFoundError),
+            pytest.raises(CliError, match="not a git repository"),
+        ):
+            create_worktree(tmp_path)
 
     def test_create_worktree_fail_raises(self, tmp_path):
-        with patch("subprocess.run") as mock_run:
+        with patch("subprocess.run") as mock_run, patch("os.rmdir"):
             # First call (rev-parse) succeeds
             # Second call (worktree add) fails
             mock_run.side_effect = [
                 argparse.Namespace(returncode=0),
                 subprocess.CalledProcessError(1, "git", stderr=b"already exists"),
             ]
-            with patch("os.rmdir"):
-                with pytest.raises(CliError, match="failed to create git worktree"):
-                    create_worktree(tmp_path)
+            with pytest.raises(CliError, match="failed to create git worktree"):
+                create_worktree(tmp_path)
 
 
 class TestFindRepoRoot:
@@ -122,15 +125,19 @@ class TestWriteFile:
 
     def test_oserror_without_label(self, tmp_path):
         dest = tmp_path / "out.txt"
-        with patch("pathlib.Path.write_text", side_effect=PermissionError("denied")):
-            with pytest.raises(CliError, match="cannot write .*/out.txt"):
-                _write_file(dest, "content")
+        with (
+            patch("pathlib.Path.write_text", side_effect=PermissionError("denied")),
+            pytest.raises(CliError, match="cannot write .*/out.txt"),
+        ):
+            _write_file(dest, "content")
 
     def test_oserror_with_label(self, tmp_path):
         dest = tmp_path / "out.txt"
-        with patch("pathlib.Path.write_text", side_effect=PermissionError("denied")):
-            with pytest.raises(CliError, match="cannot write skill .*/out.txt"):
-                _write_file(dest, "content", label="skill")
+        with (
+            patch("pathlib.Path.write_text", side_effect=PermissionError("denied")),
+            pytest.raises(CliError, match="cannot write skill .*/out.txt"),
+        ):
+            _write_file(dest, "content", label="skill")
 
 
 class TestWriteInstruction:
@@ -176,19 +183,25 @@ class TestWriteFailures:
     """tests for write error handling."""
 
     def test_write_instruction_permission_denied(self, tmp_path):
-        with patch("pathlib.Path.write_text", side_effect=PermissionError("denied")):
-            with pytest.raises(CliError, match="cannot write"):
-                write_instruction(tmp_path, "claude", "content")
+        with (
+            patch("pathlib.Path.write_text", side_effect=PermissionError("denied")),
+            pytest.raises(CliError, match="cannot write"),
+        ):
+            write_instruction(tmp_path, "claude", "content")
 
     def test_write_skill_permission_denied(self, tmp_path):
-        with patch("pathlib.Path.write_text", side_effect=PermissionError("denied")):
-            with pytest.raises(CliError, match="cannot write skill"):
-                write_skill(tmp_path, "claude", "explain", "my-skill", "prompt")
+        with (
+            patch("pathlib.Path.write_text", side_effect=PermissionError("denied")),
+            pytest.raises(CliError, match="cannot write skill"),
+        ):
+            write_skill(tmp_path, "claude", "explain", "my-skill", "prompt")
 
     def test_write_subagent_permission_denied(self, tmp_path):
-        with patch("pathlib.Path.write_text", side_effect=PermissionError("denied")):
-            with pytest.raises(CliError, match="cannot write subagent"):
-                write_subagent(tmp_path, "claude", ["python"], "my-subagent", "system")
+        with (
+            patch("pathlib.Path.write_text", side_effect=PermissionError("denied")),
+            pytest.raises(CliError, match="cannot write subagent"),
+        ):
+            write_subagent(tmp_path, "claude", ["python"], "my-subagent", "system")
 
 
 class TestParseKv:
@@ -219,9 +232,11 @@ class TestRunAgent:
     """tests for agent execution."""
 
     def test_missing_binary_raises(self, tmp_path):
-        with patch("familiar.agents.subprocess.call", side_effect=FileNotFoundError):
-            with pytest.raises(CliError, match="claude not found in PATH"):
-                run_agent(tmp_path, "claude", "prompt", headless=True)
+        with (
+            patch("familiar.agents.subprocess.call", side_effect=FileNotFoundError),
+            pytest.raises(CliError, match="claude not found in PATH"),
+        ):
+            run_agent(tmp_path, "claude", "prompt", headless=True)
 
     def test_returns_exit_code(self, tmp_path):
         with patch("familiar.agents.subprocess.call", return_value=42):
@@ -403,52 +418,56 @@ class TestCmdInvoke:
             mock_run.assert_not_called()
 
     def test_invoke_with_worktree(self, tmp_path):
-        with patch(
-            "familiar.cli.create_worktree", return_value=tmp_path / "wt"
-        ) as mock_wt:
-            with patch("familiar.cli.run_agent", return_value=0) as mock_run:
-                with patch("shutil.copy2") as mock_copy:
-                    (tmp_path / "CLAUDE.md").write_text("instr")
+        with (
+            patch(
+                "familiar.cli.create_worktree", return_value=tmp_path / "wt"
+            ) as mock_wt,
+            patch("familiar.cli.run_agent", return_value=0) as mock_run,
+            patch("shutil.copy2") as mock_copy,
+        ):
+            (tmp_path / "CLAUDE.md").write_text("instr")
 
-                    args = argparse.Namespace(
-                        agent="claude",
-                        invocation="explain",
-                        into=str(tmp_path),
-                        headless=True,
-                        auto=False,
-                        dry_run=False,
-                        kv=None,
-                        inv_args=[],
-                        worktree=True,
-                        save_skill=False,
-                        skill_name=None,
-                    )
-                    result = cmd_invoke(args)
-                    assert result == 0
-                    mock_wt.assert_called_once()
-                    assert mock_run.call_args[0][0] == tmp_path / "wt"
-                    mock_copy.assert_called_once()
+            args = argparse.Namespace(
+                agent="claude",
+                invocation="explain",
+                into=str(tmp_path),
+                headless=True,
+                auto=False,
+                dry_run=False,
+                kv=None,
+                inv_args=[],
+                worktree=True,
+                save_skill=False,
+                skill_name=None,
+            )
+            result = cmd_invoke(args)
+            assert result == 0
+            mock_wt.assert_called_once()
+            assert mock_run.call_args[0][0] == tmp_path / "wt"
+            mock_copy.assert_called_once()
 
     def test_invoke_worktree_cleaned_up_on_error(self, tmp_path):
-        with patch("familiar.cli.create_worktree", return_value=tmp_path / "wt"):
-            with patch("familiar.cli.run_agent", side_effect=RuntimeError("boom")):
-                with patch("familiar.cli._remove_worktree") as mock_remove:
-                    args = argparse.Namespace(
-                        agent="claude",
-                        invocation="explain",
-                        into=str(tmp_path),
-                        headless=True,
-                        auto=False,
-                        dry_run=False,
-                        kv=None,
-                        inv_args=[],
-                        worktree=True,
-                        save_skill=False,
-                        skill_name=None,
-                    )
-                    with pytest.raises(RuntimeError, match="boom"):
-                        cmd_invoke(args)
-                    mock_remove.assert_called_once()
+        with (
+            patch("familiar.cli.create_worktree", return_value=tmp_path / "wt"),
+            patch("familiar.cli.run_agent", side_effect=RuntimeError("boom")),
+            patch("familiar.cli._remove_worktree") as mock_remove,
+        ):
+            args = argparse.Namespace(
+                agent="claude",
+                invocation="explain",
+                into=str(tmp_path),
+                headless=True,
+                auto=False,
+                dry_run=False,
+                kv=None,
+                inv_args=[],
+                worktree=True,
+                save_skill=False,
+                skill_name=None,
+            )
+            with pytest.raises(RuntimeError, match="boom"):
+                cmd_invoke(args)
+            mock_remove.assert_called_once()
 
     def test_invoke_save_skill_claude(self, tmp_path):
         with patch("familiar.cli.run_agent") as mock_run:

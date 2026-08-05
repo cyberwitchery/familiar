@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import warnings
+from collections.abc import Callable
 from importlib.metadata import entry_points
-from typing import Any, Callable
+from typing import Any
 
 
 def load_plugins(
@@ -36,7 +37,8 @@ def load_plugins(
                 )
                 continue
             results.append(obj)
-        except Exception as e:
+        # a broken third-party entry point must not take down the cli
+        except Exception as e:  # noqa: BLE001
             warnings.warn(
                 f"failed to load {label} '{ep.name}': {e}",
                 stacklevel=2,

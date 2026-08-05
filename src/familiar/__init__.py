@@ -2,6 +2,6 @@
 
 from importlib.metadata import version
 
-__all__ = ["agents", "render", "cli"]
+__all__ = ["agents", "cli", "render"]
 
 __version__ = version("familiar-cli")
