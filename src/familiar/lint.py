@@ -65,7 +65,9 @@ def _next_heading_offset(text: str) -> int | None:
     for line in text.split("\n"):
         match = _FENCE.match(line)
         if fence is None:
-            if match:
+            if match and not (
+                match.group("marker")[0] == "`" and "`" in match.group("info")
+            ):
                 fence = match.group("marker")
             elif line.startswith("#"):
                 return offset
