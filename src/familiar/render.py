@@ -26,8 +26,11 @@ def _safe_read_text(path: Path, label: str) -> str:
     """read a UTF-8 text file, converting I/O errors to :class:`NotFoundError`."""
     try:
         return path.read_text(encoding="utf-8")
+    # PermissionError is an OSError; keep it first for its specific message.
     except PermissionError:
         raise NotFoundError(f"cannot read {label}: permission denied on {path}")
+    except OSError as e:
+        raise NotFoundError(f"cannot read {label}: {e}")
     except UnicodeDecodeError:
         raise NotFoundError(f"cannot read {label}: {path} is not valid UTF-8")
 

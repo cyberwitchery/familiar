@@ -141,6 +141,12 @@ class TestLoadText:
         with pytest.raises(NotFoundError, match="not valid UTF-8"):
             load_text(tmp_path, "conjurings", "binary")
 
+    def test_directory_override_raises(self, tmp_path):
+        override_dir = tmp_path / ".familiar" / "conjurings"
+        (override_dir / "nested.md").mkdir(parents=True)
+        with pytest.raises(NotFoundError, match="cannot read conjuring 'nested'"):
+            load_text(tmp_path, "conjurings", "nested")
+
 
 class TestComposeSystem:
     """tests for composing system prompts."""
@@ -433,6 +439,12 @@ class TestLoadSnippet:
         (snippet_dir / "binary.txt").write_bytes(b"\xff\xfe invalid utf-8")
         with pytest.raises(NotFoundError, match="not valid UTF-8"):
             load_snippet(tmp_path, "test/binary.txt")
+
+    def test_directory_override_raises(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        (snippet_dir / "nested").mkdir(parents=True)
+        with pytest.raises(NotFoundError, match="cannot read snippet 'test/nested'"):
+            load_snippet(tmp_path, "test/nested")
 
 
 class TestResolveIncludes:

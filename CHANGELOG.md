@@ -1,5 +1,9 @@
 # changelog
 
+## Unreleased
+
+- report a clear error when a conjuring, invocation, or snippet override in `.familiar/` is a directory instead of a file: familiar now names the item it could not read and suggests `familiar list`, instead of leaking a bare `error: [Errno 21] Is a directory`. other read errors are wrapped the same way
+
 ## [0.6.0] - 2026-08-07
 
 - `familiar conjure` now expands `{{> snippet:...}}` includes in conjurings (core and selected) instead of writing them verbatim into the generated instruction file, matching the include support invocations already had and the references `familiar lint` already validates
