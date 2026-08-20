@@ -22,6 +22,17 @@ class NotFoundError(Exception):
     """raised when a conjuring, invocation, or snippet is not found."""
 
 
+def _override_present(override: Path, label: str) -> bool:
+    """report whether anything sits at ``override``, readable or not."""
+    try:
+        override.lstat()
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    except OSError as e:
+        raise NotFoundError(f"cannot read {label}: {e}")
+    return True
+
+
 def _safe_read_text(path: Path, label: str) -> str:
     """read a UTF-8 text file, converting I/O errors to :class:`NotFoundError`."""
     try:
@@ -40,8 +51,9 @@ def load_text(repo_root: Path, kind: str, name: str) -> str:
     if not _VALID_NAME.match(name):
         raise NotFoundError(f"invalid {kind.rstrip('s')} name: {name}")
     override = repo_root / ".familiar" / kind / f"{name}.md"
-    if override.exists():
-        return _safe_read_text(override, f"{kind.rstrip('s')} '{name}'")
+    label = f"{kind.rstrip('s')} '{name}'"
+    if _override_present(override, label):
+        return _safe_read_text(override, label)
     pkg = f"familiar.data.{kind}"
     try:
         return (resources.files(pkg) / f"{name}.md").read_text(encoding="utf-8")
@@ -60,8 +72,9 @@ def load_snippet(repo_root: Path, path: str) -> str:
         raise NotFoundError(f"invalid snippet path: {path}")
 
     override = repo_root / ".familiar" / "snippets" / path
-    if override.exists():
-        return _safe_read_text(override, f"snippet '{path}'")
+    label = f"snippet '{path}'"
+    if _override_present(override, label):
+        return _safe_read_text(override, label)
 
     try:
         ref: Traversable = resources.files("familiar.data.snippets")
