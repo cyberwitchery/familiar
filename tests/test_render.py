@@ -141,6 +141,32 @@ class TestLoadText:
         with pytest.raises(NotFoundError, match="not valid UTF-8"):
             load_text(tmp_path, "conjurings", "binary")
 
+    def test_directory_override_raises(self, tmp_path):
+        override_dir = tmp_path / ".familiar" / "conjurings"
+        (override_dir / "nested.md").mkdir(parents=True)
+        with pytest.raises(NotFoundError, match="cannot read conjuring 'nested'"):
+            load_text(tmp_path, "conjurings", "nested")
+
+    def test_overlong_name_override_raises(self, tmp_path):
+        override_dir = tmp_path / ".familiar" / "conjurings"
+        override_dir.mkdir(parents=True)
+        with pytest.raises(NotFoundError, match="cannot read conjuring"):
+            load_text(tmp_path, "conjurings", "a" * 300)
+
+    def test_symlink_loop_override_raises(self, tmp_path):
+        override_dir = tmp_path / ".familiar" / "conjurings"
+        override_dir.mkdir(parents=True)
+        (override_dir / "python.md").symlink_to("python.md")
+        with pytest.raises(NotFoundError, match="cannot read conjuring 'python'"):
+            load_text(tmp_path, "conjurings", "python")
+
+    def test_dangling_symlink_override_raises(self, tmp_path):
+        override_dir = tmp_path / ".familiar" / "conjurings"
+        override_dir.mkdir(parents=True)
+        (override_dir / "python.md").symlink_to(tmp_path / "gone.md")
+        with pytest.raises(NotFoundError, match="cannot read conjuring 'python'"):
+            load_text(tmp_path, "conjurings", "python")
+
 
 class TestComposeSystem:
     """tests for composing system prompts."""
@@ -433,6 +459,32 @@ class TestLoadSnippet:
         (snippet_dir / "binary.txt").write_bytes(b"\xff\xfe invalid utf-8")
         with pytest.raises(NotFoundError, match="not valid UTF-8"):
             load_snippet(tmp_path, "test/binary.txt")
+
+    def test_directory_override_raises(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        (snippet_dir / "nested").mkdir(parents=True)
+        with pytest.raises(NotFoundError, match="cannot read snippet 'test/nested'"):
+            load_snippet(tmp_path, "test/nested")
+
+    def test_overlong_name_override_raises(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        with pytest.raises(NotFoundError, match="cannot read snippet"):
+            load_snippet(tmp_path, "test/" + "a" * 300)
+
+    def test_symlink_loop_override_raises(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "python"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "pyproject.toml").symlink_to("pyproject.toml")
+        with pytest.raises(NotFoundError, match="cannot read snippet 'python/"):
+            load_snippet(tmp_path, "python/pyproject.toml")
+
+    def test_dangling_symlink_override_raises(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "python"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "pyproject.toml").symlink_to(tmp_path / "gone.toml")
+        with pytest.raises(NotFoundError, match="cannot read snippet 'python/"):
+            load_snippet(tmp_path, "python/pyproject.toml")
 
 
 class TestResolveIncludes:

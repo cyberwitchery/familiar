@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- report a clear error when a conjuring, invocation, or snippet override in `.familiar/` cannot be read — a directory where a file is expected, a name too long for the filesystem, an unreadable parent directory: familiar now names the item it could not read and suggests `familiar list`, instead of leaking a bare `error: [Errno 21] Is a directory`
+- a broken symlink override (dangling, or looping back on itself) is now reported by name instead of being silently skipped in favour of the packaged builtin
 - `familiar lint` no longer reports a placeholder as undocumented when the inputs section contains a fenced code example: a `#` comment inside a code fence is no longer mistaken for the heading that ends the section
 - `familiar lint` now warns about an undocumented `$1` in an invocation that also uses `$10`; documenting only the longer placeholder no longer counts as documenting the shorter one
 
