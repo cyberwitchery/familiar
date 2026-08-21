@@ -1,5 +1,10 @@
 # changelog
 
+## Unreleased
+
+- `familiar lint` no longer reports a placeholder as undocumented when the inputs section contains a fenced code example: a `#` comment inside a code fence is no longer mistaken for the heading that ends the section
+- `familiar lint` now warns about an undocumented `$1` in an invocation that also uses `$10`; documenting only the longer placeholder no longer counts as documenting the shorter one
+
 ## [0.6.0] - 2026-08-07
 
 - `familiar conjure` now expands `{{> snippet:...}}` includes in conjurings (core and selected) instead of writing them verbatim into the generated instruction file, matching the include support invocations already had and the references `familiar lint` already validates
