@@ -52,6 +52,34 @@ _INPUTS_SECTION = re.compile(
 _OUTPUT_SECTION = re.compile(
     r"^(##\s+)?(outputs?|deliverables?):?\s*$", re.IGNORECASE | re.MULTILINE
 )
+_FENCE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})(?P<info>.*)$")
+
+
+def _next_heading_offset(text: str) -> int | None:
+    """offset of the first line starting with ``#`` outside a fenced code block.
+
+    an unclosed fence runs to the end of ``text``.
+    """
+    fence: str | None = None
+    offset = 0
+    for line in text.split("\n"):
+        match = _FENCE.match(line)
+        if fence is None:
+            if match and not (
+                match.group("marker")[0] == "`" and "`" in match.group("info")
+            ):
+                fence = match.group("marker")
+            elif line.startswith("#"):
+                return offset
+        elif (
+            match
+            and match.group("marker")[0] == fence[0]
+            and len(match.group("marker")) >= len(fence)
+            and not match.group("info").strip()
+        ):
+            fence = None
+        offset += len(line) + 1
+    return None
 
 
 def lint_template(content: str, name: str) -> list[LintMessage]:
@@ -98,11 +126,10 @@ def _check_placeholder_docs(
     inputs_match = _INPUTS_SECTION.search(doc_content)
     if inputs_match:
         start = inputs_match.end()
-        # look ahead for the next markdown heading or end of file
-        next_heading = re.search(r"^#", doc_content[start:], re.MULTILINE)
+        next_heading = _next_heading_offset(doc_content[start:])
         search_area = (
-            doc_content[start : start + next_heading.start()]
-            if next_heading
+            doc_content[start : start + next_heading]
+            if next_heading is not None
             else doc_content[start:]
         ).lower()
     else:
@@ -129,7 +156,8 @@ def _check_placeholder_docs(
     for p in positional:
         if p == "ARGUMENTS":
             continue
-        pattern = rf"(\w+[:\s]+\${p}|\${p}\s+[`\w]|\${p}\s*\()"
+        ref = rf"\${p}(?!\d)"
+        pattern = rf"(\w+[:\s]+{ref}|{ref}\s+[`\w]|{ref}\s*\()"
         if not re.search(pattern, search_area):
             messages.append(
                 LintMessage(

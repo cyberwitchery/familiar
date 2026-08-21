@@ -219,6 +219,193 @@ output
         placeholder_warnings = [m for m in messages if "{{spec}}" in m.message]
         assert placeholder_warnings == []
 
+    def test_fenced_example_does_not_end_inputs_section(self):
+        content = """task: do something with {{target}}
+
+## inputs
+
+```sh
+# run it like this
+familiar invoke thing
+```
+
+- {{target}}: the file to operate on
+
+## output
+
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
+        assert placeholder_warnings == []
+
+    def test_tilde_fenced_example_does_not_end_inputs_section(self):
+        content = """task: do something with {{target}}
+
+## inputs
+
+~~~
+# run it like this
+~~~
+
+- {{target}}: the file to operate on
+
+## output
+
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
+        assert placeholder_warnings == []
+
+    def test_heading_after_fence_still_ends_inputs_section(self):
+        content = """task: do something with {{target}}
+
+## inputs
+
+```sh
+# run it like this
+```
+
+- other: something else
+
+## notes
+
+- {{target}} is described here, outside the inputs section
+
+## output
+
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
+        assert len(placeholder_warnings) == 1
+        assert placeholder_warnings[0].level == "warning"
+
+    def test_unclosed_fence_runs_to_end_of_file(self):
+        content = """task: do something with {{target}}
+
+## inputs
+
+```sh
+# run it like this
+
+## output
+
+- {{target}}: the file to operate on
+"""
+        messages = lint_invocation(content, "test.md")
+        placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
+        assert placeholder_warnings == []
+
+    def test_inline_code_line_does_not_open_a_fence(self):
+        content = """task: do something with {{target}}
+
+## inputs
+
+```familiar lint``` validates these files before you commit.
+
+- ctx: the surrounding context
+
+## output
+
+- results mentioning {{target}}
+"""
+        messages = lint_invocation(content, "test.md")
+        placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
+        assert len(placeholder_warnings) == 1
+        assert placeholder_warnings[0].level == "warning"
+
+    def test_backtick_fence_does_not_close_a_tilde_fence(self):
+        content = """task: do something with {{target}}
+
+## inputs
+
+~~~
+```
+# run it like this
+~~~
+
+- {{target}}: the file to operate on
+
+## output
+
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
+        assert placeholder_warnings == []
+
+    def test_shorter_fence_does_not_close_a_longer_fence(self):
+        content = """task: do something with {{target}}
+
+## inputs
+
+````
+```
+# run it like this
+````
+
+- {{target}}: the file to operate on
+
+## output
+
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
+        assert placeholder_warnings == []
+
+    def test_fence_with_info_string_does_not_close_a_fence(self):
+        content = """task: do something with {{target}}
+
+## inputs
+
+```
+```python
+# run it like this
+```
+
+- {{target}}: the file to operate on
+
+## output
+
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
+        assert placeholder_warnings == []
+
+    def test_positional_placeholder_not_matched_as_prefix(self):
+        content = """task: process $1 and $10
+
+## inputs
+
+- ctx: $10 the tenth argument
+
+## output
+
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        assert [m for m in messages if "'$10'" in m.message] == []
+        first_warnings = [m for m in messages if "'$1'" in m.message]
+        assert len(first_warnings) == 1
+        assert first_warnings[0].level == "warning"
+
+    def test_positional_placeholder_documented_with_trailing_punctuation(self):
+        for doc in [
+            "- ctx: $1",
+            "- ctx: $1, the first argument",
+            "- $1 (required): the first argument",
+        ]:
+            content = (
+                f"task: process $1\n\n## inputs\n\n{doc}\n\n## output\n\n- results\n"
+            )
+            messages = lint_invocation(content, "test.md")
+            warnings = [m for m in messages if "may not be documented" in m.message]
+            assert warnings == [], f"failed for: {doc}"
+
 
 class TestLintAll:
     """tests for linting all conjurings and invocations."""
