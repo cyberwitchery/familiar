@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -47,16 +47,14 @@ _TASK_LINE = re.compile(
 )
 # accept inputs, input, arguments as input sections (with or without ## heading)
 _INPUTS_SECTION = re.compile(
-    r"^(##\s+)?(inputs?|arguments?)(\s*\([^)]+\))?:?\s*$", re.IGNORECASE | re.MULTILINE
+    r"^(##\s+)?(inputs?|arguments?)(\s*\([^)]+\))?:?\s*$", re.IGNORECASE
 )
-_OUTPUT_SECTION = re.compile(
-    r"^(##\s+)?(outputs?|deliverables?):?\s*$", re.IGNORECASE | re.MULTILINE
-)
+_OUTPUT_SECTION = re.compile(r"^(##\s+)?(outputs?|deliverables?):?\s*$", re.IGNORECASE)
 _FENCE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})(?P<info>.*)$")
 
 
-def _next_heading_offset(text: str) -> int | None:
-    """offset of the first line starting with ``#`` outside a fenced code block.
+def _unfenced_lines(text: str) -> Iterator[tuple[int, str]]:
+    """yield ``(offset, line)`` for every line of ``text`` outside a fenced code block.
 
     an unclosed fence runs to the end of ``text``.
     """
@@ -69,8 +67,8 @@ def _next_heading_offset(text: str) -> int | None:
                 match.group("marker")[0] == "`" and "`" in match.group("info")
             ):
                 fence = match.group("marker")
-            elif line.startswith("#"):
-                return offset
+            else:
+                yield offset, line
         elif (
             match
             and match.group("marker")[0] == fence[0]
@@ -79,6 +77,22 @@ def _next_heading_offset(text: str) -> int | None:
         ):
             fence = None
         offset += len(line) + 1
+
+
+def _next_heading_offset(text: str) -> int | None:
+    """offset of the first line starting with ``#`` outside a fenced code block."""
+    for offset, line in _unfenced_lines(text):
+        if line.startswith("#"):
+            return offset
+    return None
+
+
+def _section_end_offset(pattern: re.Pattern[str], text: str) -> int | None:
+    """offset just past the first line matching ``pattern`` outside a fenced block."""
+    for offset, line in _unfenced_lines(text):
+        match = pattern.match(line)
+        if match:
+            return offset + match.end()
     return None
 
 
@@ -123,9 +137,8 @@ def _check_placeholder_docs(
     messages: list[LintMessage] = []
 
     # loose check: prefer the inputs section if it exists, else the whole file
-    inputs_match = _INPUTS_SECTION.search(doc_content)
-    if inputs_match:
-        start = inputs_match.end()
+    start = _section_end_offset(_INPUTS_SECTION, doc_content)
+    if start is not None:
         next_heading = _next_heading_offset(doc_content[start:])
         search_area = (
             doc_content[start : start + next_heading]
@@ -205,7 +218,7 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
             )
         )
 
-    if not _INPUTS_SECTION.search(content):
+    if _section_end_offset(_INPUTS_SECTION, content) is None:
         messages.append(
             LintMessage(
                 level="warning",
@@ -215,7 +228,7 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
             )
         )
 
-    if not _OUTPUT_SECTION.search(content):
+    if _section_end_offset(_OUTPUT_SECTION, content) is None:
         messages.append(
             LintMessage(
                 level="warning",

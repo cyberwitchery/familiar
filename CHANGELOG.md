@@ -6,6 +6,7 @@
 - a broken symlink override (dangling, or looping back on itself) is now reported by name instead of being silently skipped in favour of the packaged builtin
 - `familiar lint` no longer reports a placeholder as undocumented when the inputs section contains a fenced code example: a `#` comment inside a code fence is no longer mistaken for the heading that ends the section
 - `familiar lint` now warns about an undocumented `$1` in an invocation that also uses `$10`; documenting only the longer placeholder no longer counts as documenting the shorter one
+- `familiar lint` now ignores `inputs`/`output` headings that appear inside a fenced code block: an invocation whose only such heading sits in a code example is reported as missing the section, and a fenced example heading no longer makes placeholders that are documented further down the file look undocumented
 
 ## [0.6.0] - 2026-08-07
 
