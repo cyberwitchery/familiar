@@ -376,6 +376,72 @@ familiar invoke thing
         placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
         assert placeholder_warnings == []
 
+    def test_fenced_inputs_heading_does_not_count_as_the_section(self):
+        content = """task: show how to write an invocation
+
+here is the shape of one:
+
+```md
+## inputs
+
+- {{thing}}: a thing
+
+## output
+
+- results
+```
+"""
+        messages = lint_invocation(content, "test.md")
+        section_warnings = [m for m in messages if "section" in m.message]
+        assert len(section_warnings) == 2
+        assert all(m.level == "warning" for m in section_warnings)
+        assert any("'inputs' section" in m.message for m in section_warnings)
+        assert any("'output' or 'deliverables'" in m.message for m in section_warnings)
+
+    def test_tilde_fenced_output_heading_does_not_count_as_the_section(self):
+        content = """task: show how to write an invocation
+
+## inputs
+
+- ctx: the surrounding context
+
+~~~md
+## output
+
+- results
+~~~
+"""
+        messages = lint_invocation(content, "test.md")
+        output_warnings = [m for m in messages if "output" in m.message.lower()]
+        assert len(output_warnings) == 1
+        assert output_warnings[0].level == "warning"
+
+    def test_fenced_inputs_heading_does_not_anchor_placeholder_search(self):
+        content = """task: do something with {{target}}
+
+an example of what to write:
+
+```md
+## inputs
+
+- example: a placeholder
+
+## output
+
+- example results
+```
+
+## inputs
+
+- {{target}}: the file to operate on
+
+## output
+
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        assert messages == []
+
     def test_positional_placeholder_not_matched_as_prefix(self):
         content = """task: process $1 and $10
 
