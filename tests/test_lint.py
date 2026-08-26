@@ -8,6 +8,7 @@ import pytest
 
 from familiar.lint import (
     LintMessage,
+    _unfenced_lines,
     lint_all,
     lint_collection,
     lint_invocation,
@@ -471,6 +472,84 @@ an example of what to write:
             messages = lint_invocation(content, "test.md")
             warnings = [m for m in messages if "may not be documented" in m.message]
             assert warnings == [], f"failed for: {doc}"
+
+
+class TestContainerAwareFences:
+    """tests for fences nested in list items and block quotes."""
+
+    @staticmethod
+    def _unfenced(text):
+        return [line for _, line in _unfenced_lines(text)]
+
+    def test_bullet_nested_fence_with_indented_closer_does_not_swallow_the_file(self):
+        content = """task: do something with {{target}}
+
+- write the invocation like this:
+
+   ```md
+   ## inputs
+    ```
+
+## inputs
+
+- {{target}}: the file to operate on
+"""
+        messages = lint_invocation(content, "test.md")
+        assert [m for m in messages if "'inputs' section" in m.message] == []
+
+    def test_fence_in_a_list_item(self):
+        text = "- item\n\n  ```\n  ## inputs\n  ```\n\n## real\n"
+        assert self._unfenced(text) == ["- item", "", "", "## real", ""]
+
+    def test_fence_in_a_block_quote(self):
+        text = "> quoted\n>\n> ```\n> ## inputs\n> ```\n\n## real\n"
+        assert self._unfenced(text) == ["> quoted", ">", "", "## real", ""]
+
+    def test_fence_in_a_list_item_inside_a_block_quote(self):
+        text = "> - item\n>\n>   ```\n>   ## inputs\n>   ```\n>\n## real\n"
+        assert self._unfenced(text) == ["> - item", ">", ">", "## real", ""]
+
+    def test_unclosed_fence_still_runs_to_the_end_of_the_file(self):
+        text = "intro\n\n```\n## inputs\n\n## output\n"
+        assert self._unfenced(text) == ["intro", ""]
+
+    def test_fence_ends_when_its_container_ends(self):
+        text = "- item\n\n  ```\n  code\n## real\n"
+        assert self._unfenced(text) == ["- item", "", "## real", ""]
+
+    def test_blank_line_does_not_end_a_fence_in_a_list_item(self):
+        text = "- item\n\n  ```\n  code\n\n  ## inputs\n  ```\n\n## real\n"
+        assert self._unfenced(text) == ["- item", "", "", "## real", ""]
+
+    def test_blank_line_ends_a_fence_in_a_block_quote(self):
+        text = "> ```\n> code\n\n## real\n"
+        assert self._unfenced(text) == ["", "## real", ""]
+
+    def test_fence_marker_past_the_item_content_column_is_not_a_fence(self):
+        text = "- item\n\n      ```\n\n## real\n"
+        assert self._unfenced(text) == ["- item", "", "      ```", "", "## real", ""]
+
+    def test_top_level_closer_indented_four_spaces_does_not_close(self):
+        text = "   ```\n   code\n    ```\n## swallowed\n"
+        assert self._unfenced(text) == []
+
+    def test_tab_indented_fence_under_a_bullet(self):
+        text = "-\ta\n\n\t```\n\t## inputs\n\t```\n\n## real\n"
+        assert self._unfenced(text) == ["-\ta", "", "", "## real", ""]
+
+    def test_ordered_marker_mid_paragraph_opens_no_container(self):
+        text = "prose\n2) not a list\n      ```\n## real\n"
+        assert self._unfenced(text) == [
+            "prose",
+            "2) not a list",
+            "      ```",
+            "## real",
+            "",
+        ]
+
+    def test_outdented_closer_ends_the_item_and_opens_a_new_fence(self):
+        text = "- item\n\n  ```\n  code\n```\n## swallowed\n"
+        assert self._unfenced(text) == ["- item", ""]
 
 
 class TestLintAll:
