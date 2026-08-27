@@ -51,31 +51,133 @@ _INPUTS_SECTION = re.compile(
 )
 _OUTPUT_SECTION = re.compile(r"^(##\s+)?(outputs?|deliverables?):?\s*$", re.IGNORECASE)
 _FENCE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})(?P<info>.*)$")
+_LIST_ITEM = re.compile(r"^( {0,3})([-+*]|\d{1,9})([.)]?)( +|$)")
+_ATX_HEADING = re.compile(r"^ {0,3}#{1,6}(?: |$)")
+
+_QUOTE = "quote"
+_ITEM = "item"
+
+
+def _match_container(line: str, col: int, container: tuple[str, int]) -> int | None:
+    """column just past ``container``'s prefix on ``line``, or ``None`` if absent."""
+    kind, width = container
+    stop = col + (3 if kind == _QUOTE else width)
+    end = col
+    while end < len(line) and line[end] == " " and end < stop:
+        end += 1
+    if kind == _ITEM:
+        return end if end - col == width else None
+    if end >= len(line) or line[end] != ">":
+        return None
+    end += 1
+    return end + 1 if end < len(line) and line[end] == " " else end
+
+
+def _opens_item(line: str, col: int, interrupting: bool) -> int | None:
+    """content width of the list item starting at ``col``, or ``None`` if none does."""
+    item = _LIST_ITEM.match(line[col:])
+    if item is None or (item.group(2).isdigit() and not item.group(3)):
+        return None
+    content = line[col + item.end() :]
+    if interrupting and (
+        not content.strip() or item.group(2) not in ("-", "+", "*", "1")
+    ):
+        return None
+    pad = len(item.group(4))
+    marker = len(item.group(1)) + len(item.group(2)) + len(item.group(3))
+    return marker + (pad if 1 <= pad <= 4 and content else 1)
+
+
+def _open_containers(
+    line: str, col: int, stack: list[tuple[str, int]], interrupting: bool
+) -> int:
+    """push every container ``line`` opens at ``col``, returning the content column."""
+    while True:
+        quoted = _match_container(line, col, (_QUOTE, 0))
+        if quoted is not None:
+            stack.append((_QUOTE, 0))
+            col = quoted
+        else:
+            width = _opens_item(line, col, interrupting)
+            if width is None:
+                return col
+            stack.append((_ITEM, width))
+            col += width
+        interrupting = False
+
+
+def _closes(rest: str, fence: str) -> bool:
+    match = _FENCE.match(rest)
+    return (
+        match is not None
+        and match.group("marker")[0] == fence[0]
+        and len(match.group("marker")) >= len(fence)
+        and not match.group("info").strip()
+    )
+
+
+def _opens(rest: str) -> str | None:
+    match = _FENCE.match(rest)
+    if match is None:
+        return None
+    marker = match.group("marker")
+    if marker[0] == "`" and "`" in match.group("info"):
+        return None
+    return marker
 
 
 def _unfenced_lines(text: str) -> Iterator[tuple[int, str]]:
     """yield ``(offset, line)`` for every line of ``text`` outside a fenced code block.
 
-    an unclosed fence runs to the end of ``text``.
+    fence indentation is measured from the content column of the block quotes and
+    list items open around it. an unclosed fence runs to the end of its container,
+    or to the end of ``text`` at the top level.
     """
+    stack: list[tuple[str, int]] = []
     fence: str | None = None
+    paragraph = False
     offset = 0
     for line in text.split("\n"):
-        match = _FENCE.match(line)
-        if fence is None:
-            if match and not (
-                match.group("marker")[0] == "`" and "`" in match.group("info")
-            ):
-                fence = match.group("marker")
+        expanded = line.expandtabs(4)
+        blank = not expanded.strip()
+
+        col = 0
+        depth = 0
+        for container in stack:
+            if blank:
+                if container[0] == _QUOTE:
+                    break
             else:
-                yield offset, line
-        elif (
-            match
-            and match.group("marker")[0] == fence[0]
-            and len(match.group("marker")) >= len(fence)
-            and not match.group("info").strip()
-        ):
+                nxt = _match_container(expanded, col, container)
+                if nxt is None:
+                    break
+                col = nxt
+            depth += 1
+
+        if fence is not None:
+            if depth == len(stack):
+                if _closes(expanded[col:], fence):
+                    fence = None
+                offset += len(line) + 1
+                continue
             fence = None
+
+        del stack[depth:]
+        rest = ""
+        if not blank:
+            rest = expanded[_open_containers(expanded, col, stack, paragraph) :]
+            fence = _opens(rest)
+            if fence is not None:
+                paragraph = False
+                offset += len(line) + 1
+                continue
+        paragraph = (
+            bool(rest.strip())
+            and not _ATX_HEADING.match(rest)
+            and (paragraph or not rest.startswith("    "))
+        )
+
+        yield offset, line
         offset += len(line) + 1
 
 
