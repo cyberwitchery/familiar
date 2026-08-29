@@ -552,6 +552,142 @@ class TestContainerAwareFences:
         assert self._unfenced(text) == ["- item", ""]
 
 
+class TestHtmlBlocks:
+    """tests for fence markers swallowed by a commonmark html block."""
+
+    @staticmethod
+    def _unfenced(text):
+        return [line for _, line in _unfenced_lines(text)]
+
+    def test_details_wrapping_an_example_does_not_swallow_the_file(self):
+        content = """task: do something with {{target}}
+
+<details>
+<summary>example</summary>
+- ```md
+  ## inputs
+```
+</details>
+
+## inputs
+
+- {{target}}: the file to operate on
+
+## output
+
+- the rewritten file
+"""
+        assert lint_invocation(content, "test.md") == []
+
+    def test_bullet_fence_under_an_open_tag_is_not_a_fence(self):
+        text = "<div>\n- ```\n## inputs\n```\n"
+        assert self._unfenced(text) == ["<div>", "- ```", "## inputs", "```", ""]
+
+    def test_blank_line_between_the_tag_and_the_fence_leaves_a_fence(self):
+        text = "<div>\n\n```\n## inputs\n```\n\n## real\n"
+        assert self._unfenced(text) == ["<div>", "", "", "## real", ""]
+
+    def test_open_tag_interrupts_a_paragraph(self):
+        text = "text\n<div>\n```\n## inputs\n```\n## real\n"
+        assert self._unfenced(text) == [
+            "text",
+            "<div>",
+            "```",
+            "## inputs",
+            "```",
+            "## real",
+            "",
+        ]
+
+    def test_html_block_ends_with_its_container(self):
+        text = "- <div>\n  ```\n## real\n```\n"
+        assert self._unfenced(text) == ["- <div>", "  ```", "## real"]
+
+    def test_html_block_in_a_list_item(self):
+        text = "- <details>\n  ```\n  ## inputs\n\n## real\n"
+        assert self._unfenced(text) == [
+            "- <details>",
+            "  ```",
+            "  ## inputs",
+            "",
+            "## real",
+            "",
+        ]
+
+    def test_html_block_in_a_block_quote(self):
+        text = "> <div>\n> ```\n> ## inputs\n\n## real\n"
+        assert self._unfenced(text) == [
+            "> <div>",
+            "> ```",
+            "> ## inputs",
+            "",
+            "## real",
+            "",
+        ]
+
+    def test_script_runs_to_its_closing_tag(self):
+        text = "<script>\n```\n## inputs\n</script>\n## real\n"
+        assert self._unfenced(text) == [
+            "<script>",
+            "```",
+            "## inputs",
+            "</script>",
+            "## real",
+            "",
+        ]
+
+    def test_script_closed_on_its_own_line_leaves_a_fence(self):
+        text = "<script>x</script>\n```\n## inputs\n```\n## real\n"
+        assert self._unfenced(text) == ["<script>x</script>", "## real", ""]
+
+    def test_comment_runs_to_its_terminator(self):
+        text = "<!--\n```\n-->\n## real\n"
+        assert self._unfenced(text) == ["<!--", "```", "-->", "## real", ""]
+
+    def test_comment_closed_on_its_own_line_leaves_a_fence(self):
+        text = "<!-- c -->\n```\n## inputs\n```\n## real\n"
+        assert self._unfenced(text) == ["<!-- c -->", "## real", ""]
+
+    def test_processing_instruction_runs_to_its_terminator(self):
+        text = "<?php\n```\n?>\n## real\n"
+        assert self._unfenced(text) == ["<?php", "```", "?>", "## real", ""]
+
+    def test_declaration_runs_to_its_terminator(self):
+        text = "<!DOCTYPE\n```\n## inputs\nfoo>\n## real\n"
+        assert self._unfenced(text) == [
+            "<!DOCTYPE",
+            "```",
+            "## inputs",
+            "foo>",
+            "## real",
+            "",
+        ]
+
+    def test_declaration_closed_on_its_own_line_leaves_a_fence(self):
+        text = "<!DOCTYPE html>\n```\n## inputs\n```\n## real\n"
+        assert self._unfenced(text) == ["<!DOCTYPE html>", "## real", ""]
+
+    def test_cdata_runs_to_its_terminator(self):
+        text = "<![CDATA[\n```\n]]>\n## real\n"
+        assert self._unfenced(text) == ["<![CDATA[", "```", "]]>", "## real", ""]
+
+    def test_unknown_tag_alone_on_a_line_opens_a_block(self):
+        text = "<x-tag>\n```\n## inputs\n```\n\n## real\n"
+        assert self._unfenced(text) == [
+            "<x-tag>",
+            "```",
+            "## inputs",
+            "```",
+            "",
+            "## real",
+            "",
+        ]
+
+    def test_unknown_tag_does_not_interrupt_a_paragraph(self):
+        text = "text\n<x-tag>\n```\n## inputs\n```\n## real\n"
+        assert self._unfenced(text) == ["text", "<x-tag>", "## real", ""]
+
+
 class TestLintAll:
     """tests for linting all conjurings and invocations."""
 
