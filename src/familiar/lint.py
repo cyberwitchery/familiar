@@ -209,7 +209,10 @@ def _unfenced_lines(text: str) -> Iterator[tuple[int, str]]:
 
         if html is not None:
             end = _HTML_BLOCKS[html][1]
-            if depth < len(stack) or (blank and (stack or end is None)):
+            inner_blank = not expanded[col:].strip()
+            if depth < len(stack) or (
+                inner_blank and (end is None or (blank and stack))
+            ):
                 html = None
             else:
                 if end is not None and end.search(expanded[col:]):
