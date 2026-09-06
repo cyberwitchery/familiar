@@ -57,6 +57,41 @@ _ATX_HEADING = re.compile(r"^ {0,3}#{1,6}(?: |$)")
 _QUOTE = "quote"
 _ITEM = "item"
 
+_HTML_BLOCK_NAMES = (
+    "address|article|aside|base|basefont|blockquote|body|caption|center|col|"
+    "colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|"
+    "form|frame|frameset|h1|h2|h3|h4|h5|h6|head|header|hr|html|iframe|legend|li|"
+    "link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|"
+    "section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul"
+)
+_HTML_ATTRIBUTE = (
+    r"(?:\s+[a-zA-Z_:][a-zA-Z0-9:._-]*"
+    r"(?:\s*=\s*(?:[^\"'=<>`\x00-\x20]+|'[^']*'|\"[^\"]*\"))?)"
+)
+_HTML_TAG = (
+    rf"<[A-Za-z][A-Za-z0-9-]*{_HTML_ATTRIBUTE}*\s*/?>|</[A-Za-z][A-Za-z0-9-]*\s*>"
+)
+
+# commonmark's seven html block types in order; a ``None`` end condition means
+# the block runs to the next blank line
+_HTML_BLOCKS: tuple[tuple[re.Pattern[str], re.Pattern[str] | None], ...] = (
+    (
+        re.compile(r"^ {0,3}<(?:script|pre|style|textarea)(?=\s|>|$)", re.IGNORECASE),
+        re.compile(r"</(?:script|pre|style|textarea)>", re.IGNORECASE),
+    ),
+    (re.compile(r"^ {0,3}<!--"), re.compile(r"-->")),
+    (re.compile(r"^ {0,3}<\?"), re.compile(r"\?>")),
+    (re.compile(r"^ {0,3}<![A-Za-z]"), re.compile(r">")),
+    (re.compile(r"^ {0,3}<!\[CDATA\["), re.compile(r"\]\]>")),
+    (
+        re.compile(rf"^ {{0,3}}</?(?:{_HTML_BLOCK_NAMES})(?=\s|/?>|$)", re.IGNORECASE),
+        None,
+    ),
+    (re.compile(rf"^ {{0,3}}(?:{_HTML_TAG})[ \t]*$"), None),
+)
+# type 7, any complete tag alone on a line, may not interrupt a paragraph
+_HTML_LOOSE_TAG = 6
+
 
 def _match_container(line: str, col: int, container: tuple[str, int]) -> int | None:
     """column just past ``container``'s prefix on ``line``, or ``None`` if absent."""
@@ -126,15 +161,25 @@ def _opens(rest: str) -> str | None:
     return marker
 
 
+def _opens_html(rest: str, paragraph: bool) -> int | None:
+    """index into ``_HTML_BLOCKS`` of the html block ``rest`` opens, else ``None``."""
+    for kind, (start, _) in enumerate(_HTML_BLOCKS):
+        if start.match(rest):
+            return None if kind == _HTML_LOOSE_TAG and paragraph else kind
+    return None
+
+
 def _unfenced_lines(text: str) -> Iterator[tuple[int, str]]:
     """yield ``(offset, line)`` for every line of ``text`` outside a fenced code block.
 
     fence indentation is measured from the content column of the block quotes and
     list items open around it. an unclosed fence runs to the end of its container,
-    or to the end of ``text`` at the top level.
+    or to the end of ``text`` at the top level. html blocks are tracked the same
+    way and swallow any fence marker inside them.
     """
     stack: list[tuple[str, int]] = []
     fence: str | None = None
+    html: int | None = None
     paragraph = False
     offset = 0
     for line in text.split("\n"):
@@ -162,8 +207,23 @@ def _unfenced_lines(text: str) -> Iterator[tuple[int, str]]:
                 continue
             fence = None
 
+        if html is not None:
+            end = _HTML_BLOCKS[html][1]
+            inner_blank = not expanded[col:].strip()
+            if depth < len(stack) or (
+                inner_blank and (end is None or (blank and stack))
+            ):
+                html = None
+            else:
+                if end is not None and end.search(expanded[col:]):
+                    html = None
+                yield offset, line
+                offset += len(line) + 1
+                continue
+
         del stack[depth:]
         rest = ""
+        opened: int | None = None
         if not blank:
             rest = expanded[_open_containers(expanded, col, stack, paragraph) :]
             fence = _opens(rest)
@@ -171,8 +231,13 @@ def _unfenced_lines(text: str) -> Iterator[tuple[int, str]]:
                 paragraph = False
                 offset += len(line) + 1
                 continue
+            opened = _opens_html(rest, paragraph)
+            if opened is not None:
+                end = _HTML_BLOCKS[opened][1]
+                html = None if end is not None and end.search(rest) else opened
         paragraph = (
-            bool(rest.strip())
+            opened is None
+            and bool(rest.strip())
             and not _ATX_HEADING.match(rest)
             and (paragraph or not rest.startswith("    "))
         )

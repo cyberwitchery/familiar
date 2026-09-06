@@ -8,6 +8,7 @@
 - `familiar lint` now warns about an undocumented `$1` in an invocation that also uses `$10`; documenting only the longer placeholder no longer counts as documenting the shorter one
 - `familiar lint` now ignores `inputs`/`output` headings that appear inside a fenced code block: an invocation whose only such heading sits in a code example is reported as missing the section, and a fenced example heading no longer makes placeholders that are documented further down the file look undocumented
 - `familiar lint` no longer reports a missing `inputs`/`output` section because of a code fence nested under a bullet or inside a block quote: fences are now measured against the container they sit in, the way commonmark measures them, so an example fence whose closing marker is indented under its bullet no longer swallows the rest of the file
+- `familiar lint` no longer mistakes a code fence written inside a raw HTML block for a real fence: an example fence wrapped in `<details>` or `<div>` with no blank line between them is part of the HTML, the way commonmark reads it, so the `inputs`/`output` headings that follow it are still found
 
 ## [0.6.0] - 2026-08-07
 
