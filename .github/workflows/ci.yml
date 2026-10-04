@@ -49,9 +49,16 @@ jobs:
       - name: verify cli entry point
         run: familiar --help
 
+  sbom:
+    name: sbom
+    uses: cyberwitchery/.github/.github/workflows/sbom.yml@d8cdf87f9048c369e1ab49281da13e7e72a782fb # main
+    with:
+      mode: report
+      ecosystem: python
+
   success:
     name: success
-    needs: [lint, test]
+    needs: [lint, test, sbom]
     runs-on: ubuntu-latest
     if: always()
     steps:
