@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import shlex
 import subprocess
 from unittest.mock import patch
 
@@ -533,6 +534,42 @@ class TestCmdInvoke:
         )
         with pytest.raises(CliError, match="invalid skill name"):
             cmd_invoke(args)
+
+
+class TestInvokeKvFlag:
+    """tests for parsing --kv on the invoke command line."""
+
+    def _dry_run(self, tmp_path, capsys, argv):
+        argv = [*argv, "--into", str(tmp_path), "--dry-run"]
+        with pytest.raises(SystemExit, match="0"), patch("sys.argv", argv):
+            main()
+        return capsys.readouterr()
+
+    @pytest.mark.parametrize(
+        ("kv_args", "expected"),
+        [
+            (["--kv", "a=1", "b=2"], "a=1 b=2"),
+            (["--kv", "a=1", "--kv", "b=2"], "a=1 b=2"),
+            (["--kv", "a=1", "b=2", "--kv", "a=3"], "a=3 b=2"),
+            (["--kv"], "a={{a}} b={{b}}"),
+            ([], "a={{a}} b={{b}}"),
+        ],
+        ids=["one-flag", "repeated-flag", "repeated-key-last-wins", "bare", "absent"],
+    )
+    def test_collects_pairs(self, tmp_path, capsys, kv_args, expected):
+        inv_dir = tmp_path / ".familiar" / "invocations"
+        inv_dir.mkdir(parents=True)
+        (inv_dir / "custom.md").write_text("a={{a}} b={{b}}")
+        argv = ["familiar", "invoke", "claude", "custom", *kv_args]
+        assert self._dry_run(tmp_path, capsys, argv).out.strip() == expected
+
+    def test_docs_example(self, tmp_path, capsys):
+        argv = shlex.split(
+            'familiar invoke codex implement-feature --kv spec="add caching" --kv ttl=300'
+        )
+        captured = self._dry_run(tmp_path, capsys, argv)
+        assert "add caching" in captured.out
+        assert "missing arguments" not in captured.err
 
 
 class TestCmdList:
