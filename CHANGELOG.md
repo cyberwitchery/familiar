@@ -1,5 +1,9 @@
 # changelog
 
+## Unreleased
+
+- `familiar invoke` now keeps every `--kv` pair when the flag is repeated, as in `--kv spec="add caching" --kv ttl=300`, instead of silently dropping all but the last flag's pairs and leaving their `{{key}}` placeholders unfilled
+
 ## [0.6.1] - 2026-09-06
 
 - report a clear error when a conjuring, invocation, or snippet override in `.familiar/` cannot be read — a directory where a file is expected, a name too long for the filesystem, an unreadable parent directory: familiar now names the item it could not read and suggests `familiar list`, instead of leaking a bare `error: [Errno 21] Is a directory`

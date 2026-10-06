@@ -459,7 +459,12 @@ def main() -> None:
         "--skill-name",
         help="override skill name (default: invocation name)",
     )
-    invoke.add_argument("--kv", nargs="*", help="named arguments as key=value pairs")
+    invoke.add_argument(
+        "--kv",
+        nargs="*",
+        action="extend",
+        help="named arguments as key=value pairs",
+    )
     invoke.add_argument(
         "inv_args", nargs="*", help="positional arguments for the invocation"
     )
