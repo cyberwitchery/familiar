@@ -652,6 +652,41 @@ class TestCmdList:
         captured = capsys.readouterr()
         assert "python (local)" in captured.out
 
+    def test_list_marks_unreadable_local(self, tmp_path, capsys):
+        invocations = tmp_path / ".familiar" / "invocations"
+        invocations.mkdir(parents=True)
+        (invocations / "bad.md").write_bytes(b"task: caf\xe9\n")
+
+        args = argparse.Namespace(
+            kind="invocations",
+            into=str(tmp_path),
+            verbose=False,
+        )
+        assert cmd_list(args) == 0
+        assert "bad (local, unreadable)\n" in capsys.readouterr().out
+
+    def test_list_verbose_unreadable_local_has_no_first_line(self, tmp_path, capsys):
+        invocations = tmp_path / ".familiar" / "invocations"
+        invocations.mkdir(parents=True)
+        (invocations / "bad.md").write_bytes(b"task: caf\xe9\n")
+
+        args = argparse.Namespace(
+            kind="invocations",
+            into=str(tmp_path),
+            verbose=True,
+        )
+        cmd_list(args)
+        assert "bad (local, unreadable)\n" in capsys.readouterr().out
+
+    def test_list_all_marks_unreadable_snippet(self, tmp_path, capsys):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "x"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "s.md").write_bytes(b"caf\xe9\n")
+
+        args = argparse.Namespace(kind=None, into=str(tmp_path), verbose=False)
+        cmd_list(args)
+        assert "  x/s.md (local, unreadable)\n" in capsys.readouterr().out
+
     def test_list_snippets(self, tmp_path, capsys):
         args = argparse.Namespace(
             kind="snippets",

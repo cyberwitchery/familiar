@@ -7,6 +7,7 @@ import pytest
 from familiar.render import (
     _MAX_INCLUDE_DEPTH,
     NotFoundError,
+    UnreadableError,
     compose_system,
     list_items,
     list_snippets,
@@ -166,6 +167,18 @@ class TestLoadText:
         (override_dir / "python.md").symlink_to(tmp_path / "gone.md")
         with pytest.raises(NotFoundError, match="cannot read conjuring 'python'"):
             load_text(tmp_path, "conjurings", "python")
+
+    def test_unreadable_override_raises_unreadable_error(self, tmp_path):
+        override_dir = tmp_path / ".familiar" / "conjurings"
+        override_dir.mkdir(parents=True)
+        (override_dir / "binary.md").write_bytes(b"\xff\xfe invalid utf-8")
+        with pytest.raises(UnreadableError, match="not valid UTF-8"):
+            load_text(tmp_path, "conjurings", "binary")
+
+    def test_unknown_item_is_not_unreadable(self, tmp_path):
+        with pytest.raises(NotFoundError) as excinfo:
+            load_text(tmp_path, "conjurings", "nonexistent")
+        assert not isinstance(excinfo.value, UnreadableError)
 
 
 class TestComposeSystem:
@@ -388,18 +401,17 @@ class TestListItems:
         items = list_items(tmp_path, "conjurings")
         assert len(items) > 0
 
-    def test_list_skips_invalid_utf8_local(self, tmp_path):
+    def test_list_marks_invalid_utf8_local_unreadable(self, tmp_path):
         templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "good.md").write_text("# good file")
         (templates / "bad.md").write_bytes(b"\xff\xfe not utf-8")
 
         items = list_items(tmp_path, "conjurings")
-        names = [name for name, _, _ in items]
-        assert "good" in names
-        assert "bad" not in names
+        assert ("good", "# good file", True) in items
+        assert ("bad", None, True) in items
 
-    def test_list_skips_permission_denied_local(self, tmp_path):
+    def test_list_marks_permission_denied_local_unreadable(self, tmp_path):
         templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "good.md").write_text("# good file")
@@ -408,11 +420,34 @@ class TestListItems:
         locked.chmod(0o000)
         try:
             items = list_items(tmp_path, "conjurings")
-            names = [name for name, _, _ in items]
-            assert "good" in names
-            assert "locked" not in names
+            assert ("good", "# good file", True) in items
+            assert ("locked", None, True) in items
         finally:
             locked.chmod(0o644)
+
+    def test_list_marks_unreadable_override_of_builtin(self, tmp_path):
+        templates = tmp_path / ".familiar" / "conjurings"
+        templates.mkdir(parents=True)
+        (templates / "python.md").write_bytes(b"\xff\xfe not utf-8")
+
+        items = list_items(tmp_path, "conjurings")
+        assert [item for item in items if item[0] == "python"] == [
+            ("python", None, True)
+        ]
+
+    def test_list_marks_dangling_symlink_unreadable(self, tmp_path):
+        templates = tmp_path / ".familiar" / "conjurings"
+        templates.mkdir(parents=True)
+        (templates / "dangling.md").symlink_to(tmp_path / "gone.md")
+
+        items = list_items(tmp_path, "conjurings")
+        assert ("dangling", None, True) in items
+
+    def test_list_skips_directory_named_like_item(self, tmp_path):
+        (tmp_path / ".familiar" / "conjurings" / "nested.md").mkdir(parents=True)
+
+        items = list_items(tmp_path, "conjurings")
+        assert "nested" not in [name for name, _, _ in items]
 
 
 class TestLoadSnippet:
@@ -669,13 +704,23 @@ class TestListSnippets:
         assert "test/visible.txt" in paths
         assert "test/_hidden.txt" not in paths
 
-    def test_list_snippets_skips_invalid_utf8(self, tmp_path):
+    def test_list_snippets_marks_invalid_utf8_unreadable(self, tmp_path):
         snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
         snippet_dir.mkdir(parents=True)
         (snippet_dir / "good.txt").write_text("good content")
         (snippet_dir / "bad.txt").write_bytes(b"\xff\xfe not utf-8")
 
         items = list_snippets(tmp_path)
-        local_paths = [p for p, _, is_local in items if is_local]
-        assert "test/good.txt" in local_paths
-        assert "test/bad.txt" not in local_paths
+        assert ("test/good.txt", "good content", True) in items
+        assert ("test/bad.txt", None, True) in items
+
+    def test_list_snippets_marks_permission_denied_unreadable(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        locked = snippet_dir / "locked.txt"
+        locked.write_text("content")
+        locked.chmod(0o000)
+        try:
+            assert ("test/locked.txt", None, True) in list_snippets(tmp_path)
+        finally:
+            locked.chmod(0o644)

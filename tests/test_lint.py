@@ -940,6 +940,99 @@ class TestLintCollectionErrorHandling:
             lint_collection(tmp_path, "conjurings", exploding_linter, [])
 
 
+class TestLintUnreadableLocalFiles:
+    """tests for local files that exist but cannot be read."""
+
+    def _errors_for(self, messages, file):
+        return [m for m in messages if m.level == "error" and m.file == file]
+
+    def test_invalid_utf8_invocation_reported(self, tmp_path):
+        invocations = tmp_path / ".familiar" / "invocations"
+        invocations.mkdir(parents=True)
+        (invocations / "bad.md").write_bytes(b"task: caf\xe9\n")
+
+        errors = self._errors_for(lint_all(tmp_path), ".familiar/invocations/bad.md")
+        assert len(errors) == 1
+        assert "cannot read invocation 'bad'" in errors[0].message
+        assert "not valid UTF-8" in errors[0].message
+
+    def test_invalid_utf8_conjuring_reported(self, tmp_path):
+        conjurings = tmp_path / ".familiar" / "conjurings"
+        conjurings.mkdir(parents=True)
+        (conjurings / "bad.md").write_bytes(b"# caf\xe9\n")
+
+        errors = self._errors_for(lint_all(tmp_path), ".familiar/conjurings/bad.md")
+        assert len(errors) == 1
+        assert "cannot read conjuring 'bad'" in errors[0].message
+        assert "not valid UTF-8" in errors[0].message
+
+    def test_permission_denied_invocation_reported(self, tmp_path):
+        invocations = tmp_path / ".familiar" / "invocations"
+        invocations.mkdir(parents=True)
+        locked = invocations / "locked.md"
+        locked.write_text("task: do it\n")
+        locked.chmod(0o000)
+        try:
+            messages = lint_all(tmp_path)
+        finally:
+            locked.chmod(0o644)
+
+        errors = self._errors_for(messages, ".familiar/invocations/locked.md")
+        assert len(errors) == 1
+        assert "permission denied" in errors[0].message
+
+    def test_dangling_symlink_conjuring_reported(self, tmp_path):
+        conjurings = tmp_path / ".familiar" / "conjurings"
+        conjurings.mkdir(parents=True)
+        (conjurings / "dangling.md").symlink_to(tmp_path / "gone.md")
+
+        errors = self._errors_for(
+            lint_all(tmp_path), ".familiar/conjurings/dangling.md"
+        )
+        assert len(errors) == 1
+        assert "cannot read conjuring 'dangling'" in errors[0].message
+
+    def test_invalid_utf8_snippet_reported(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "x"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "s.md").write_bytes(b"caf\xe9\n")
+
+        errors = self._errors_for(
+            lint_snippet_collection(tmp_path), ".familiar/snippets/x/s.md"
+        )
+        assert len(errors) == 1
+        assert "cannot read snippet 'x/s.md'" in errors[0].message
+        assert "not valid UTF-8" in errors[0].message
+
+    def test_include_of_invalid_utf8_snippet_reports_reason(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "x"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "s.md").write_bytes(b"caf\xe9\n")
+
+        content = "task: use it\n{{> snippet:x/s.md}}"
+        messages = lint_snippet_references(tmp_path, content, "inc.md")
+        assert len(messages) == 1
+        assert messages[0].line == 2
+        assert "cannot read snippet 'x/s.md'" in messages[0].message
+        assert "not valid UTF-8" in messages[0].message
+
+    def test_include_of_permission_denied_snippet_reports_reason(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "x"
+        snippet_dir.mkdir(parents=True)
+        locked = snippet_dir / "s.md"
+        locked.write_text("content")
+        locked.chmod(0o000)
+        try:
+            messages = lint_snippet_references(
+                tmp_path, "{{> snippet:x/s.md}}", "inc.md"
+            )
+        finally:
+            locked.chmod(0o644)
+
+        assert len(messages) == 1
+        assert "permission denied" in messages[0].message
+
+
 class TestLintSnippetReferences:
     """tests for snippet reference validation."""
 
