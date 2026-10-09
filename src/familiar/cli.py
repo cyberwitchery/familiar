@@ -317,11 +317,14 @@ def cmd_invoke(args: argparse.Namespace) -> int:
 
 
 def _print_items(
-    items: list[tuple[str, str, bool]], verbose: bool, indent: str = ""
+    items: list[tuple[str, str | None, bool]], verbose: bool, indent: str = ""
 ) -> None:
     for name, first_line, is_local in items:
-        marker = " (local)" if is_local else ""
-        if verbose:
+        tags = ["local"] if is_local else []
+        if first_line is None:
+            tags.append("unreadable")
+        marker = f" ({', '.join(tags)})" if tags else ""
+        if verbose and first_line is not None:
             print(f"{indent}{name}{marker}: {first_line}")
         else:
             print(f"{indent}{name}{marker}")

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `familiar lint` and `familiar list` no longer silently skip a conjuring, invocation, or snippet in `.familiar/` that cannot be read (not valid UTF-8, permission denied, a dangling symlink): `lint` reports it by name with the reason, `list` marks it `(local, unreadable)`, and an include of such a snippet is reported with the reason instead of as `snippet not found`
 - `familiar invoke` now keeps every `--kv` pair when the flag is repeated, as in `--kv spec="add caching" --kv ttl=300`, instead of silently dropping all but the last flag's pairs and leaving their `{{key}}` placeholders unfilled
 
 ## [0.6.1] - 2026-09-06

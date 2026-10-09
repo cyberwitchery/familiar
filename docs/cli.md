@@ -132,6 +132,7 @@ familiar list [kind] [--into <path>] [-v|--verbose]
 
 - lists built-in and local items
 - local overrides are marked with `(local)`
+- local files that cannot be read are marked with `(local, unreadable)`; `familiar lint` reports why
 - items are sorted alphabetically
 
 **examples:**

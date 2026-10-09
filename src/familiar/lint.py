@@ -12,6 +12,7 @@ from ._plugins import load_plugins
 from .render import (
     _SNIPPET_INCLUDE,
     NotFoundError,
+    UnreadableError,
     _expand_includes,
     list_items,
     list_snippets,
@@ -448,6 +449,11 @@ def lint_snippet_references(
             snippet_path = m.group(1).strip()
             try:
                 body = load_snippet(repo_root, snippet_path)
+            except UnreadableError as e:
+                messages.append(
+                    LintMessage(level="error", file=name, line=i, message=str(e))
+                )
+                continue
             except NotFoundError:
                 messages.append(
                     LintMessage(
@@ -534,13 +540,11 @@ def lint_collection(
     """lint a collection of items (conjurings or invocations)."""
     messages: list[LintMessage] = []
     for name, _, is_local in list_items(repo_root, kind):
+        prefix = (
+            f".familiar/{kind}/{name}.md" if is_local else f"(builtin) {kind}/{name}.md"
+        )
         try:
             content = load_text(repo_root, kind, name)
-            prefix = (
-                f".familiar/{kind}/{name}.md"
-                if is_local
-                else f"(builtin) {kind}/{name}.md"
-            )
             messages.extend(builtin_linter(content, prefix))
             messages.extend(lint_snippet_references(repo_root, content, prefix))
             if kind == "invocations":
@@ -562,7 +566,7 @@ def lint_collection(
             messages.append(
                 LintMessage(
                     level="error",
-                    file=f"{kind}/{name}.md",
+                    file=prefix,
                     line=None,
                     message=f"failed to load: {e}",
                 )

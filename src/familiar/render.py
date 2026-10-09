@@ -22,6 +22,10 @@ class NotFoundError(Exception):
     """raised when a conjuring, invocation, or snippet is not found."""
 
 
+class UnreadableError(NotFoundError):
+    """raised when a local override is present but cannot be read."""
+
+
 def _override_present(override: Path, label: str) -> bool:
     """report whether anything sits at ``override``, readable or not."""
     try:
@@ -29,21 +33,21 @@ def _override_present(override: Path, label: str) -> bool:
     except (FileNotFoundError, NotADirectoryError):
         return False
     except OSError as e:
-        raise NotFoundError(f"cannot read {label}: {e}")
+        raise UnreadableError(f"cannot read {label}: {e}")
     return True
 
 
 def _safe_read_text(path: Path, label: str) -> str:
-    """read a UTF-8 text file, converting I/O errors to :class:`NotFoundError`."""
+    """read a UTF-8 text file, converting I/O errors to :class:`UnreadableError`."""
     try:
         return path.read_text(encoding="utf-8")
     # PermissionError is an OSError; keep it first for its specific message.
     except PermissionError:
-        raise NotFoundError(f"cannot read {label}: permission denied on {path}")
+        raise UnreadableError(f"cannot read {label}: permission denied on {path}")
     except OSError as e:
-        raise NotFoundError(f"cannot read {label}: {e}")
+        raise UnreadableError(f"cannot read {label}: {e}")
     except UnicodeDecodeError:
-        raise NotFoundError(f"cannot read {label}: {path} is not valid UTF-8")
+        raise UnreadableError(f"cannot read {label}: {path} is not valid UTF-8")
 
 
 def load_text(repo_root: Path, kind: str, name: str) -> str:
@@ -185,7 +189,7 @@ def _list_resources(
     *,
     recursive: bool = False,
     suffix: str = "",
-) -> list[tuple[str, str, bool]]:
+) -> list[tuple[str, str | None, bool]]:
     """list resources from package data and local overrides.
 
     items from local ``.familiar/{local_subdir}/`` override package builtins.
@@ -198,9 +202,10 @@ def _list_resources(
         suffix: file suffix filter (e.g. ``".md"``). empty string matches all files.
 
     Returns:
-        sorted list of ``(key, first_line, is_local)`` tuples.
+        sorted list of ``(key, first_line, is_local)`` tuples. ``first_line`` is
+        ``None`` for a local file that cannot be read.
     """
-    items: dict[str, tuple[str, bool]] = {}
+    items: dict[str, tuple[str | None, bool]] = {}
 
     try:
         pkg_root = resources.files(pkg)
@@ -229,12 +234,13 @@ def _list_resources(
             sorted(local_dir.rglob("*")) if recursive else local_dir.glob(f"*{suffix}")
         )
         for f in files:
-            if not f.is_file() or f.name.startswith("_"):
+            if f.name.startswith("_") or (f.exists() and not f.is_file()):
                 continue
             key = str(f.relative_to(local_dir)) if recursive else f.stem
             try:
                 content = f.read_text(encoding="utf-8")
-            except (UnicodeDecodeError, PermissionError):
+            except (OSError, UnicodeDecodeError):
+                items[key] = (None, True)
                 continue
             first_line = content.split("\n", 1)[0].strip()
             items[key] = (first_line, True)
@@ -245,7 +251,7 @@ def _list_resources(
     ]
 
 
-def list_snippets(repo_root: Path) -> list[tuple[str, str, bool]]:
+def list_snippets(repo_root: Path) -> list[tuple[str, str | None, bool]]:
     """list available snippets.
 
     returns list of (path, first_line, is_local) tuples, sorted by path.
@@ -255,7 +261,7 @@ def list_snippets(repo_root: Path) -> list[tuple[str, str, bool]]:
     )
 
 
-def list_items(repo_root: Path, kind: str) -> list[tuple[str, str, bool]]:
+def list_items(repo_root: Path, kind: str) -> list[tuple[str, str | None, bool]]:
     """list available conjurings or invocations.
 
     returns list of (name, first_line, is_local) tuples, sorted by name.
