@@ -162,6 +162,14 @@ def substitute(text: str, args: list[str], kv: dict[str, str]) -> str:
     return text
 
 
+def _first_nonblank_line(content: str) -> tuple[int, str]:
+    """1-based number and stripped text of the first non-blank line, or ``(1, "")``."""
+    for lineno, line in enumerate(content.split("\n"), 1):
+        if line.strip():
+            return lineno, line.strip()
+    return 1, ""
+
+
 def _walk_traversable(root: Traversable, prefix: str = "") -> list[tuple[str, str]]:
     """recursively walk a Traversable, returning (relative_path, first_line) pairs."""
     items: list[tuple[str, str]] = []
@@ -175,7 +183,7 @@ def _walk_traversable(root: Traversable, prefix: str = "") -> list[tuple[str, st
                     content = item.read_text(encoding="utf-8")
                 except (UnicodeDecodeError, PermissionError):
                     continue
-                first_line = content.split("\n", 1)[0].strip()
+                _, first_line = _first_nonblank_line(content)
                 items.append((rel, first_line))
     except (FileNotFoundError, TypeError):
         pass
@@ -223,7 +231,7 @@ def _list_resources(
                     content = item.read_text(encoding="utf-8")
                 except (UnicodeDecodeError, PermissionError):
                     continue
-                first_line = content.split("\n", 1)[0].strip()
+                _, first_line = _first_nonblank_line(content)
                 items[key] = (first_line, False)
     except (FileNotFoundError, TypeError, ModuleNotFoundError):
         pass
@@ -242,7 +250,7 @@ def _list_resources(
             except (OSError, UnicodeDecodeError):
                 items[key] = (None, True)
                 continue
-            first_line = content.split("\n", 1)[0].strip()
+            _, first_line = _first_nonblank_line(content)
             items[key] = (first_line, True)
 
     return [

@@ -14,6 +14,7 @@ from .render import (
     NotFoundError,
     UnreadableError,
     _expand_includes,
+    _first_nonblank_line,
     list_items,
     list_snippets,
     load_snippet,
@@ -271,9 +272,9 @@ def lint_template(content: str, name: str) -> list[LintMessage]:
     - start with a markdown heading
     """
     messages: list[LintMessage] = []
-    lines = content.split("\n")
+    lineno, first_line = _first_nonblank_line(content)
 
-    if not lines or not lines[0].strip():
+    if not first_line:
         messages.append(
             LintMessage(
                 level="error",
@@ -284,13 +285,12 @@ def lint_template(content: str, name: str) -> list[LintMessage]:
         )
         return messages
 
-    first_line = lines[0].strip()
     if not first_line.startswith("#"):
         messages.append(
             LintMessage(
                 level="warning",
                 file=name,
-                line=1,
+                line=lineno,
                 message="template should start with a markdown heading (# ...)",
             )
         )
@@ -362,9 +362,9 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
     - document all placeholders used
     """
     messages: list[LintMessage] = []
-    lines = content.split("\n")
+    lineno, first_line = _first_nonblank_line(content)
 
-    if not lines or not lines[0].strip():
+    if not first_line:
         messages.append(
             LintMessage(
                 level="error",
@@ -375,13 +375,12 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
         )
         return messages
 
-    first_line = lines[0].strip()
     if not _TASK_LINE.match(first_line):
         messages.append(
             LintMessage(
                 level="warning",
                 file=name,
-                line=1,
+                line=lineno,
                 message="invocation should start with 'task:' or similar verb",
             )
         )
