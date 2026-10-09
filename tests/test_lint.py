@@ -35,6 +35,21 @@ class TestLintTemplate:
         assert messages[0].level == "error"
         assert "empty" in messages[0].message
 
+    @pytest.mark.parametrize("content", ["\n", "  \n\t\n", "\r\n\r\n"])
+    def test_whitespace_only_template_is_empty(self, content):
+        messages = lint_template(content, "test.md")
+        assert messages == [LintMessage("error", "test.md", 1, "template is empty")]
+
+    @pytest.mark.parametrize(
+        "content", ["\n# my template\n\nbody\n", "\r\n  \r\n# my template\r\n"]
+    )
+    def test_heading_after_leading_blank_lines(self, content):
+        assert lint_template(content, "test.md") == []
+
+    def test_missing_heading_after_leading_blank_lines(self):
+        messages = lint_template("\n  \nno heading here\n", "test.md")
+        assert [(m.level, m.line) for m in messages] == [("warning", 3)]
+
     def test_missing_heading(self):
         content = "no heading here\njust text"
         messages = lint_template(content, "test.md")
@@ -67,6 +82,35 @@ output
         assert len(messages) == 1
         assert messages[0].level == "error"
         assert "empty" in messages[0].message
+
+    @pytest.mark.parametrize("content", ["\n", "  \n\t\n", "\r\n\r\n"])
+    def test_whitespace_only_invocation_is_empty(self, content):
+        messages = lint_invocation(content, "test.md")
+        assert messages == [LintMessage("error", "test.md", 1, "invocation is empty")]
+
+    @pytest.mark.parametrize("newline", ["\n", "\r\n"])
+    def test_task_line_after_leading_blank_lines(self, newline):
+        content = newline.join(
+            [
+                "",
+                "  ",
+                "task: do something",
+                "",
+                "inputs",
+                "- $ARGUMENTS",
+                "",
+                "output",
+                "- results",
+                "",
+            ]
+        )
+        assert lint_invocation(content, "test.md") == []
+
+    def test_missing_task_line_after_leading_blank_lines(self):
+        content = "\n\nsome random text\n\ninputs\n- $1 name\n\noutput\n- results\n"
+        messages = lint_invocation(content, "test.md")
+        task_warnings = [m for m in messages if "task:" in m.message]
+        assert [(m.level, m.line) for m in task_warnings] == [("warning", 3)]
 
     def test_missing_task_line(self):
         content = """some random text

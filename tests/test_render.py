@@ -391,6 +391,20 @@ class TestListItems:
         assert is_local is True
         assert first_line == "# my custom"
 
+    @pytest.mark.parametrize(
+        ("content", "first_line"),
+        [("\n  \n# my custom\n", "# my custom"), ("\n  \n", "")],
+    )
+    def test_list_first_line_skips_leading_blank_lines(
+        self, tmp_path, content, first_line
+    ):
+        templates = tmp_path / ".familiar" / "conjurings"
+        templates.mkdir(parents=True)
+        (templates / "custom.md").write_text(content)
+
+        items = list_items(tmp_path, "conjurings")
+        assert ("custom", first_line, True) in items
+
     def test_list_sorted(self, tmp_path):
         items = list_items(tmp_path, "conjurings")
         names = [name for name, _, _ in items]
