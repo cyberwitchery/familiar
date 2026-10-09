@@ -18,6 +18,7 @@ from .agents import Agent, get_agent, get_agents
 from .lint import lint_all
 from .render import (
     NotFoundError,
+    _escape_undecodable,
     compose_system,
     list_items,
     list_snippets,
@@ -323,11 +324,12 @@ def _print_items(
         tags = ["local"] if is_local else []
         if first_line is None:
             tags.append("unreadable")
+        label = f"{indent}{_escape_undecodable(name)}"
         marker = f" ({', '.join(tags)})" if tags else ""
         if verbose and first_line is not None:
-            print(f"{indent}{name}{marker}: {first_line}")
+            print(f"{label}{marker}: {first_line}")
         else:
-            print(f"{indent}{name}{marker}")
+            print(f"{label}{marker}")
 
 
 def cmd_list(args: argparse.Namespace) -> int:

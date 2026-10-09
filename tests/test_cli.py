@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shlex
 import subprocess
 from unittest.mock import patch
@@ -687,6 +688,18 @@ class TestCmdList:
         cmd_list(args)
         assert "  x/s.md (local, unreadable)\n" in capsys.readouterr().out
 
+    def test_list_escapes_undecodable_name(self, tmp_path, capsys):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "x"
+        snippet_dir.mkdir(parents=True)
+        try:
+            (snippet_dir / os.fsdecode(b"a\xffb.md")).write_text("body\n")
+        except OSError:
+            pytest.skip("filesystem refuses names that are not valid UTF-8")
+
+        args = argparse.Namespace(kind="snippets", into=str(tmp_path), verbose=False)
+        assert cmd_list(args) == 0
+        assert "x/a\\xffb.md (local)\n" in capsys.readouterr().out
+
     def test_list_snippets(self, tmp_path, capsys):
         args = argparse.Namespace(
             kind="snippets",
@@ -702,6 +715,18 @@ class TestCmdList:
 
 class TestCmdLint:
     """tests for lint command."""
+
+    def test_lint_escapes_undecodable_name(self, tmp_path, capsys):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "x"
+        snippet_dir.mkdir(parents=True)
+        try:
+            (snippet_dir / os.fsdecode(b"a\xffb.md")).write_text("body\n")
+        except OSError:
+            pytest.skip("filesystem refuses names that are not valid UTF-8")
+
+        args = argparse.Namespace(into=str(tmp_path), errors_only=True)
+        assert cmd_lint(args) == 1
+        assert ".familiar/snippets/x/a\\xffb.md:" in capsys.readouterr().err
 
     def test_lint_builtins_pass(self, tmp_path, capsys):
         args = argparse.Namespace(

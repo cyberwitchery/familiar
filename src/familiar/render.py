@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import re
+import stat
 import sys
 from importlib import resources
 
@@ -26,17 +28,6 @@ class UnreadableError(NotFoundError):
     """raised when a local override is present but cannot be read."""
 
 
-def _override_present(override: Path, label: str) -> bool:
-    """report whether anything sits at ``override``, readable or not."""
-    try:
-        override.lstat()
-    except (FileNotFoundError, NotADirectoryError):
-        return False
-    except OSError as e:
-        raise UnreadableError(f"cannot read {label}: {e}")
-    return True
-
-
 def _safe_read_text(path: Path, label: str) -> str:
     """read a UTF-8 text file, converting I/O errors to :class:`UnreadableError`."""
     try:
@@ -50,14 +41,41 @@ def _safe_read_text(path: Path, label: str) -> str:
         raise UnreadableError(f"cannot read {label}: {path} is not valid UTF-8")
 
 
+def _read_override(override: Path, label: str) -> str | None:
+    """read a local override, or return ``None`` when nothing sits at ``override``.
+
+    anything there that does not resolve to a regular file raises
+    :class:`UnreadableError` without being opened.
+    """
+    try:
+        mode = override.lstat().st_mode
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    except OSError as e:
+        raise UnreadableError(f"cannot read {label}: {e}")
+    if stat.S_ISLNK(mode):
+        try:
+            mode = override.stat().st_mode
+        except OSError as e:
+            raise UnreadableError(f"cannot read {label}: {e}")
+    if not stat.S_ISREG(mode):
+        raise UnreadableError(f"cannot read {label}: {override} is not a regular file")
+    return _safe_read_text(override, label)
+
+
+def _escape_undecodable(text: str) -> str:
+    """``text`` with bytes that are not valid UTF-8 shown as ``\\xNN`` escapes."""
+    return text.encode("utf-8", "surrogateescape").decode("utf-8", "backslashreplace")
+
+
 def load_text(repo_root: Path, kind: str, name: str) -> str:
     """load a conjuring or invocation; local overrides in .familiar override package data."""
     if not _VALID_NAME.match(name):
         raise NotFoundError(f"invalid {kind.rstrip('s')} name: {name}")
     override = repo_root / ".familiar" / kind / f"{name}.md"
-    label = f"{kind.rstrip('s')} '{name}'"
-    if _override_present(override, label):
-        return _safe_read_text(override, label)
+    text = _read_override(override, f"{kind.rstrip('s')} '{name}'")
+    if text is not None:
+        return text
     pkg = f"familiar.data.{kind}"
     try:
         return (resources.files(pkg) / f"{name}.md").read_text(encoding="utf-8")
@@ -75,10 +93,11 @@ def load_snippet(repo_root: Path, path: str) -> str:
     if not _VALID_SNIPPET_PATH.match(path):
         raise NotFoundError(f"invalid snippet path: {path}")
 
-    override = repo_root / ".familiar" / "snippets" / path
-    label = f"snippet '{path}'"
-    if _override_present(override, label):
-        return _safe_read_text(override, label)
+    text = _read_override(
+        repo_root / ".familiar" / "snippets" / path, f"snippet '{path}'"
+    )
+    if text is not None:
+        return text
 
     try:
         ref: Traversable = resources.files("familiar.data.snippets")
@@ -190,6 +209,29 @@ def _walk_traversable(root: Traversable, prefix: str = "") -> list[tuple[str, st
     return items
 
 
+def _local_entries(local_dir: Path, *, recursive: bool, suffix: str) -> dict[str, Path]:
+    """map each listing key found under ``local_dir`` to its path.
+
+    a recursive scan descends into directories instead of listing them.
+    """
+    entries: dict[str, Path] = {}
+    if recursive:
+        for dirpath, _, names in os.walk(local_dir):
+            for name in names:
+                if not name.startswith("_"):
+                    path = Path(dirpath, name)
+                    entries[str(path.relative_to(local_dir))] = path
+        return entries
+    try:
+        names = os.listdir(local_dir)
+    except OSError:
+        return entries
+    for name in names:
+        if name.endswith(suffix) and not name.startswith("_"):
+            entries[Path(name).stem] = local_dir / name
+    return entries
+
+
 def _list_resources(
     repo_root: Path,
     pkg: str,
@@ -211,7 +253,7 @@ def _list_resources(
 
     Returns:
         sorted list of ``(key, first_line, is_local)`` tuples. ``first_line`` is
-        ``None`` for a local file that cannot be read.
+        ``None`` for a local override that cannot be read.
     """
     items: dict[str, tuple[str | None, bool]] = {}
 
@@ -237,20 +279,17 @@ def _list_resources(
         pass
 
     local_dir = repo_root / ".familiar" / local_subdir
-    if local_dir.is_dir():
-        files = (
-            sorted(local_dir.rglob("*")) if recursive else local_dir.glob(f"*{suffix}")
-        )
-        for f in files:
-            if f.name.startswith("_") or (f.exists() and not f.is_file()):
-                continue
-            key = str(f.relative_to(local_dir)) if recursive else f.stem
-            try:
-                content = f.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                items[key] = (None, True)
-                continue
-            _, first_line = _first_nonblank_line(content)
+    overrides = _local_entries(local_dir, recursive=recursive, suffix=suffix)
+    for key in items.keys() - overrides.keys():
+        overrides[key] = local_dir / f"{key}{suffix}"
+    for key, path in overrides.items():
+        try:
+            text = _read_override(path, key)
+        except UnreadableError:
+            items[key] = (None, True)
+            continue
+        if text is not None:
+            _, first_line = _first_nonblank_line(text)
             items[key] = (first_line, True)
 
     return [

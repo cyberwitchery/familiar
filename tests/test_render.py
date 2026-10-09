@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from familiar.render import (
@@ -457,11 +459,10 @@ class TestListItems:
         items = list_items(tmp_path, "conjurings")
         assert ("dangling", None, True) in items
 
-    def test_list_skips_directory_named_like_item(self, tmp_path):
+    def test_list_marks_directory_named_like_item_unreadable(self, tmp_path):
         (tmp_path / ".familiar" / "conjurings" / "nested.md").mkdir(parents=True)
 
-        items = list_items(tmp_path, "conjurings")
-        assert "nested" not in [name for name, _, _ in items]
+        assert ("nested", None, True) in list_items(tmp_path, "conjurings")
 
 
 class TestLoadSnippet:
@@ -738,3 +739,160 @@ class TestListSnippets:
             assert ("test/locked.txt", None, True) in list_snippets(tmp_path)
         finally:
             locked.chmod(0o644)
+
+
+needs_fifo = pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs os.mkfifo")
+not_root = pytest.mark.skipif(
+    hasattr(os, "geteuid") and os.geteuid() == 0, reason="root ignores file modes"
+)
+
+
+def _make_dir(path, tmp_path):
+    path.mkdir()
+
+
+def _make_fifo(path, tmp_path):
+    os.mkfifo(path)
+
+
+def _link_to_dir(path, tmp_path):
+    (tmp_path / "target").mkdir()
+    path.symlink_to(tmp_path / "target")
+
+
+def _link_to_fifo(path, tmp_path):
+    os.mkfifo(tmp_path / "target")
+    path.symlink_to(tmp_path / "target")
+
+
+_NOT_A_FILE = [
+    _make_dir,
+    pytest.param(_make_fifo, marks=needs_fifo),
+    _link_to_dir,
+    pytest.param(_link_to_fifo, marks=needs_fifo),
+]
+
+
+def _make_deep_file(root, depth):
+    """create ``x.md`` under ``depth`` nested 250-character directories."""
+    root.mkdir(parents=True)
+    fd = os.open(root, os.O_RDONLY)
+    try:
+        for _ in range(depth):
+            os.mkdir("d" * 250, dir_fd=fd)
+            child = os.open("d" * 250, os.O_RDONLY, dir_fd=fd)
+            os.close(fd)
+            fd = child
+        os.close(os.open("x.md", os.O_WRONLY | os.O_CREAT, 0o644, dir_fd=fd))
+    finally:
+        os.close(fd)
+
+
+class TestLocalOverrideProbe:
+    """listing and loading agree on what sits where a local override belongs."""
+
+    @pytest.mark.parametrize("make", _NOT_A_FILE)
+    def test_non_file_conjuring_is_local_and_unreadable(
+        self, tmp_path, without_blocking, make
+    ):
+        override = tmp_path / ".familiar" / "conjurings" / "python.md"
+        override.parent.mkdir(parents=True)
+        make(override, tmp_path)
+
+        items = without_blocking(list_items, tmp_path, "conjurings")
+        assert [item for item in items if item[0] == "python"] == [
+            ("python", None, True)
+        ]
+        with pytest.raises(UnreadableError, match="is not a regular file"):
+            without_blocking(load_text, tmp_path, "conjurings", "python")
+
+    @pytest.mark.parametrize("make", _NOT_A_FILE)
+    def test_non_file_snippet_is_local_and_unreadable(
+        self, tmp_path, without_blocking, make
+    ):
+        override = tmp_path / ".familiar" / "snippets" / "python" / "pyproject.toml"
+        override.parent.mkdir(parents=True)
+        make(override, tmp_path)
+
+        items = without_blocking(list_snippets, tmp_path)
+        assert [item for item in items if item[0] == "python/pyproject.toml"] == [
+            ("python/pyproject.toml", None, True)
+        ]
+        with pytest.raises(UnreadableError, match="is not a regular file"):
+            without_blocking(load_snippet, tmp_path, "python/pyproject.toml")
+
+    def test_symlink_to_file_is_an_override(self, tmp_path):
+        conjurings = tmp_path / ".familiar" / "conjurings"
+        conjurings.mkdir(parents=True)
+        (tmp_path / "mine.md").write_text("# mine\n")
+        (conjurings / "python.md").symlink_to(tmp_path / "mine.md")
+
+        assert ("python", "# mine", True) in list_items(tmp_path, "conjurings")
+        assert load_text(tmp_path, "conjurings", "python") == "# mine\n"
+
+    def test_snippet_directories_are_descended_not_listed(self, tmp_path):
+        nested = tmp_path / ".familiar" / "snippets" / "a" / "b"
+        nested.mkdir(parents=True)
+        (nested / "c.md").write_text("deep")
+
+        local = [path for path, _, is_local in list_snippets(tmp_path) if is_local]
+        assert local == ["a/b/c.md"]
+
+    @not_root
+    def test_unsearchable_conjurings_dir_lists_entries_unreadable(self, tmp_path):
+        conjurings = tmp_path / ".familiar" / "conjurings"
+        conjurings.mkdir(parents=True)
+        (conjurings / "python.md").write_text("# mine")
+        (conjurings / "custom.md").write_text("# custom")
+        conjurings.chmod(0o644)
+        try:
+            items = list_items(tmp_path, "conjurings")
+            with pytest.raises(UnreadableError, match="Permission denied"):
+                load_text(tmp_path, "conjurings", "custom")
+        finally:
+            conjurings.chmod(0o755)
+
+        assert ("python", None, True) in items
+        assert ("custom", None, True) in items
+
+    @not_root
+    def test_unsearchable_snippet_dir_lists_entries_unreadable(self, tmp_path):
+        snippets = tmp_path / ".familiar" / "snippets"
+        (snippets / "ok").mkdir(parents=True)
+        (snippets / "ok" / "y.md").write_text("fine")
+        (snippets / "sub").mkdir()
+        (snippets / "sub" / "x.md").write_text("hidden")
+        (snippets / "sub").chmod(0o644)
+        try:
+            items = list_snippets(tmp_path)
+            with pytest.raises(UnreadableError, match="Permission denied"):
+                load_snippet(tmp_path, "sub/x.md")
+        finally:
+            (snippets / "sub").chmod(0o755)
+
+        assert ("sub/x.md", None, True) in items
+        assert ("ok/y.md", "fine", True) in items
+
+    @not_root
+    def test_unsearchable_familiar_dir_marks_builtins_unreadable(self, tmp_path):
+        (tmp_path / ".familiar" / "conjurings").mkdir(parents=True)
+        (tmp_path / ".familiar").chmod(0o644)
+        try:
+            items = list_items(tmp_path, "conjurings")
+            with pytest.raises(UnreadableError, match="Permission denied"):
+                load_text(tmp_path, "conjurings", "python")
+        finally:
+            (tmp_path / ".familiar").chmod(0o755)
+
+        assert ("python", None, True) in items
+
+    @pytest.mark.skipif(
+        os.mkdir not in os.supports_dir_fd, reason="needs mkdir with dir_fd"
+    )
+    def test_path_too_long_does_not_abort_listing(self, tmp_path):
+        snippets = tmp_path / ".familiar" / "snippets"
+        _make_deep_file(snippets / "deep", depth=20)
+        (snippets / "ok").mkdir()
+        (snippets / "ok" / "y.md").write_text("fine")
+
+        assert ("ok/y.md", "fine", True) in list_snippets(tmp_path)
