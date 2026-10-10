@@ -13,6 +13,7 @@ from .render import (
     _SNIPPET_INCLUDE,
     NotFoundError,
     UnreadableError,
+    _escape_undecodable,
     _expand_includes,
     _first_nonblank_line,
     list_items,
@@ -36,7 +37,7 @@ class LintMessage:
         loc = f"{self.file}"
         if self.line is not None:
             loc += f":{self.line}"
-        return f"{self.level}: {loc}: {self.message}"
+        return _escape_undecodable(f"{self.level}: {loc}: {self.message}")
 
 
 _POSITIONAL_PLACEHOLDER = re.compile(r"\$(\d+|ARGUMENTS)")

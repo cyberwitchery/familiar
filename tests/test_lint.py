@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -851,6 +852,11 @@ class TestLintMessage:
         msg = LintMessage(level="warning", file="test.md", line=None, message="warning")
         assert str(msg) == "warning: test.md: warning"
 
+    def test_str_escapes_undecodable_file_name(self):
+        name = os.fsdecode(b"x/a\xffb.md")
+        msg = LintMessage(level="error", file=name, line=None, message=name)
+        assert str(msg) == "error: x/a\\xffb.md: x/a\\xffb.md"
+
 
 class TestLinterPlugins:
     """tests for linter plugin loading."""
@@ -1059,6 +1065,58 @@ class TestLintUnreadableLocalFiles:
         assert messages[0].line == 2
         assert "cannot read snippet 'x/s.md'" in messages[0].message
         assert "not valid UTF-8" in messages[0].message
+
+    def test_directory_over_builtin_conjuring_reported_as_local(self, tmp_path):
+        (tmp_path / ".familiar" / "conjurings" / "python.md").mkdir(parents=True)
+
+        messages = lint_all(tmp_path)
+        errors = self._errors_for(messages, ".familiar/conjurings/python.md")
+        assert len(errors) == 1
+        assert "is not a regular file" in errors[0].message
+        assert self._errors_for(messages, "(builtin) conjurings/python.md") == []
+
+    def test_directory_over_builtin_snippet_reported_as_local(self, tmp_path):
+        snippets = tmp_path / ".familiar" / "snippets"
+        (snippets / "python" / "pyproject.toml").mkdir(parents=True)
+
+        messages = lint_snippet_collection(tmp_path)
+        errors = self._errors_for(messages, ".familiar/snippets/python/pyproject.toml")
+        assert len(errors) == 1
+        assert "is not a regular file" in errors[0].message
+        assert (
+            self._errors_for(messages, "(builtin) snippets/python/pyproject.toml") == []
+        )
+
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs os.mkfifo")
+    def test_fifo_over_builtin_conjuring_reported_without_blocking(
+        self, tmp_path, without_blocking
+    ):
+        conjurings = tmp_path / ".familiar" / "conjurings"
+        conjurings.mkdir(parents=True)
+        os.mkfifo(conjurings / "python.md")
+
+        errors = self._errors_for(
+            without_blocking(lint_all, tmp_path), ".familiar/conjurings/python.md"
+        )
+        assert len(errors) == 1
+        assert "is not a regular file" in errors[0].message
+
+    @pytest.mark.skipif(
+        hasattr(os, "geteuid") and os.geteuid() == 0, reason="root ignores file modes"
+    )
+    def test_unsearchable_snippet_dir_reported(self, tmp_path):
+        sub = tmp_path / ".familiar" / "snippets" / "sub"
+        sub.mkdir(parents=True)
+        (sub / "x.md").write_text("hidden")
+        sub.chmod(0o644)
+        try:
+            messages = lint_all(tmp_path)
+        finally:
+            sub.chmod(0o755)
+
+        errors = self._errors_for(messages, ".familiar/snippets/sub/x.md")
+        assert len(errors) == 1
+        assert "Permission denied" in errors[0].message
 
     def test_include_of_permission_denied_snippet_reports_reason(self, tmp_path):
         snippet_dir = tmp_path / ".familiar" / "snippets" / "x"
