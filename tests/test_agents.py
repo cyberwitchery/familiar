@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,6 +18,9 @@ from familiar.agents import (
     get_agents,
     load_agents,
 )
+from familiar.cli import run_agent
+
+PLUGINS_DOC = Path(__file__).resolve().parents[1] / "docs" / "plugins.md"
 
 
 @pytest.fixture(autouse=True)
@@ -106,6 +112,37 @@ class TestPluginLoadErrors:
             with pytest.warns(UserWarning, match="failed to load"):
                 agents = load_agents()
             assert "bad" not in agents
+
+
+def _documented_agent_class() -> type[Agent]:
+    blocks = re.findall(r"```python\n(.*?)```", PLUGINS_DOC.read_text(), re.DOTALL)
+    source = next(block for block in blocks if "(Agent):" in block)
+    namespace: dict[str, Any] = {"__name__": "my_plugin"}
+    exec(source, namespace)  # noqa: S102
+    agent_cls: type[Agent] = namespace["MyAgent"]
+    return agent_cls
+
+
+class TestDocumentedAgentPlugin:
+    """tests for the agent plugin example in docs/plugins.md."""
+
+    @pytest.mark.parametrize("auto", [False, True])
+    def test_runs_through_run_agent(self, tmp_path, auto):
+        agent_cls = _documented_agent_class()
+        mock_ep = MagicMock()
+        mock_ep.name = agent_cls.name
+        mock_ep.load.return_value = agent_cls
+
+        with (
+            patch("familiar._plugins.entry_points", return_value=[mock_ep]),
+            patch("subprocess.call", return_value=0) as mock_call,
+        ):
+            result = run_agent(
+                tmp_path, agent_cls.name, "test prompt", headless=False, auto=auto
+            )
+
+        assert result == 0
+        mock_call.assert_called_once()
 
 
 class TestCodexAgent:

@@ -42,21 +42,27 @@ class MyAgent(Agent):
     name = "myagent"  # CLI name: familiar invoke myagent ...
     output_file = "MYAGENT.md"  # where conjure writes instructions
 
-    def run(self, repo_root: Path, prompt: str, headless: bool) -> int:
+    def run(
+        self, repo_root: Path, prompt: str, headless: bool, auto: bool = False
+    ) -> int:
         """Run the agent with the given prompt.
 
         Args:
             repo_root: Repository root directory.
             prompt: The rendered invocation text.
             headless: If True, run without interactive UI.
+            auto: If True, run without permission prompts.
 
         Returns:
             Exit code from the underlying CLI tool.
         """
+        cmd = ["my-cli"]
+        if auto:
+            cmd.append("--skip-permissions")
         if headless:
-            cmd = ["my-cli", "-p", prompt]
+            cmd.extend(["-p", prompt])
         else:
-            cmd = ["my-cli", prompt]
+            cmd.append(prompt)
         return subprocess.call(cmd, cwd=repo_root)
 ```
 
@@ -82,7 +88,9 @@ familiar invoke --help  # should show myagent in choices
 |------------------|------|-------------|
 | `name` | `str` | agent name for CLI |
 | `output_file` | `str` | filename for conjured instructions |
-| `run(repo_root, prompt, headless)` | `-> int` | execute the agent, return exit code |
+| `run(repo_root, prompt, headless, auto=False)` | `-> int` | execute the agent, return exit code |
+
+familiar passes `auto` as a keyword argument on every `familiar invoke`, so `run` must accept it. it is `True` when the user passes `--auto`, and asks the agent to skip its tool's permission prompts, the way the built-in agents pass `--full-auto` to codex and `--dangerously-skip-permissions` to claude.
 
 ---
 
