@@ -523,6 +523,21 @@ LABELoutput
 """
         assert lint_invocation(content, "test.md") == []
 
+    def test_label_like_line_does_not_end_a_heading_inputs_section(self):
+        content = """task: do something with {{target}}
+
+## inputs
+
+required:
+
+- {{target}}: the file to operate on
+
+## output
+
+- results
+"""
+        assert lint_invocation(content, "test.md") == []
+
     def test_loose_list_stays_in_a_bare_inputs_section(self):
         content = """task: do something with {{target}} in {{mode}}
 
@@ -598,6 +613,77 @@ output
 
 - results
 """
+        assert lint_invocation(content, "test.md") == []
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            (
+                "| input | meaning |\n|-------|---------|\n"
+                "| $1 crate_name | the crate to build |\n"
+                "| {{flavor}} | `debug` or `release` |"
+            ),
+            "{{flavor}} is the build flavor and $1 crate_name the crate to build",
+        ],
+    )
+    def test_table_or_prose_stays_in_a_bare_inputs_section(self, body):
+        content = """task: build something {{flavor}}
+
+inputs
+
+BODY
+
+steps
+- build $1 crate_name as {{flavor}}
+
+output
+- the build log
+""".replace("BODY", body)
+        assert lint_invocation(content, "test.md") == []
+
+    @pytest.mark.parametrize("label", ["Steps:", "steps (in order)"])
+    def test_label_with_colon_or_parenthetical_ends_a_bare_inputs_section(self, label):
+        content = """task: build something {{flavor}}
+
+inputs
+- $1 crate_name: the crate to build
+
+LABEL
+- build $1 crate_name as {{flavor}}
+
+output
+- the build log
+""".replace("LABEL", label)
+        assert [m.message for m in lint_invocation(content, "test.md")] == [
+            "placeholder '{{flavor}}' may not be documented in inputs"
+        ]
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "required:\n- {{target}}: the file to operate on\n- {{mode}}: how",
+            (
+                "- {{target}}: the file to operate on, relative to the repository\n"
+                "root\n"
+                "- {{mode}}: how to operate on it"
+            ),
+            (
+                "\n<details>\nexample\n</details>\n\n"
+                "- {{target}}: the file to operate on\n"
+                "- {{mode}}: how to operate on it"
+            ),
+        ],
+    )
+    def test_continued_paragraph_and_html_stay_in_a_bare_inputs_section(self, body):
+        content = """task: do something with {{target}} in {{mode}}
+
+inputs
+BODY
+
+output
+
+- results
+""".replace("BODY", body)
         assert lint_invocation(content, "test.md") == []
 
     def test_positional_placeholder_not_matched_as_prefix(self):

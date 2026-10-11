@@ -53,6 +53,8 @@ _INPUTS_SECTION = re.compile(
     r"^(##\s+)?(inputs?|arguments?)(\s*\([^)]+\))?:?\s*$", re.IGNORECASE
 )
 _OUTPUT_SECTION = re.compile(r"^(##\s+)?(outputs?|deliverables?):?\s*$", re.IGNORECASE)
+# any bare label: one word, an optional parenthetical, an optional colon
+_BARE_LABEL = re.compile(r"^[a-z]\w*(\s*\([^)]+\))?:?\s*$", re.IGNORECASE)
 _FENCE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})(?P<info>.*)$")
 _LIST_ITEM = re.compile(r"^( {0,3})([-+*]|\d{1,9})([.)]?)( +|$)")
 _ATX_HEADING = re.compile(r"^ {0,3}#{1,6}(?: |$)")
@@ -265,16 +267,18 @@ def _section(pattern: re.Pattern[str], text: str) -> str | None:
 
     ``pattern``'s first group is the ``##`` of a heading label. a heading's section
     runs to the next heading; a bare label's also ends at the next paragraph
-    outside every block quote and list item.
+    outside every block quote and list item that starts with a bare label.
     """
     lines = _unfenced_lines(text)
     for offset, line, _ in lines:
         match = pattern.match(line)
         if match:
             start = offset + match.end()
-            ends = (_HEADING,) if match.group(1) else (_HEADING, _PARAGRAPH)
-            for end, _, block in lines:
-                if block in ends:
+            bare = not match.group(1)
+            for end, after, block in lines:
+                if block == _HEADING or (
+                    bare and block == _PARAGRAPH and _BARE_LABEL.match(after)
+                ):
                     return text[start:end]
             return text[start:]
     return None
