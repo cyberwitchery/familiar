@@ -6,6 +6,7 @@
 - `familiar lint` no longer reports a conjuring or invocation that starts with a blank line as `template is empty` / `invocation is empty`, an error that also skipped every other check on the file: the heading and `task:` checks now read the first non-blank line and point their warnings at it, and `familiar list -v` describes a conjuring, invocation, or snippet by that line instead of showing an empty description
 - `familiar lint` and `familiar list` no longer silently skip a conjuring, invocation, or snippet in `.familiar/` that cannot be read (not valid UTF-8, permission denied, a dangling symlink): `lint` reports it by name with the reason, `list` marks it `(local, unreadable)`, and an include of such a snippet is reported with the reason instead of as `snippet not found`
 - `familiar invoke` now keeps every `--kv` pair when the flag is repeated, as in `--kv spec="add caching" --kv ttl=300`, instead of silently dropping all but the last flag's pairs and leaving their `{{key}}` placeholders unfilled
+- the agent plugin example in the plugin docs now accepts the `auto` argument that `familiar invoke` passes to every agent: an agent written from it failed every `familiar invoke`, whether or not `--auto` was given, with `run() got an unexpected keyword argument 'auto'`; the docs now also say what `auto` asks of an agent: to skip its tool's permission prompts
 
 ## [0.6.1] - 2026-09-06
 
