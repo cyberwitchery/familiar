@@ -19,9 +19,11 @@ from .lint import lint_all
 from .render import (
     NotFoundError,
     _escape_undecodable,
+    _first_nonblank_line,
     compose_system,
     list_items,
     list_snippets,
+    load_text,
     render_invocation,
 )
 
@@ -152,6 +154,45 @@ def write_instruction(repo_root: Path, agent_name: str, system: str) -> None:
     _write_file(dest, system.strip() + "\n")
 
 
+def _yaml_string(text: str) -> str:
+    """``text`` on one line as a double-quoted YAML scalar."""
+    out = []
+    for ch in " ".join(text.split()):
+        if ch in '"\\':
+            out.append(f"\\{ch}")
+        elif ch.isprintable():
+            out.append(ch)
+        elif ord(ch) <= 0xFFFF:
+            out.append(f"\\u{ord(ch):04x}")
+        else:
+            out.append(f"\\U{ord(ch):08x}")
+    return '"' + "".join(out) + '"'
+
+
+def _frontmatter(name: str, description: str) -> str:
+    return (
+        "---\n"
+        f"name: {_yaml_string(name)}\n"
+        f"description: {_yaml_string(description)}\n"
+        "---\n\n"
+    )
+
+
+def _skill_description(invocation: str, prompt: str) -> str:
+    _, task = _first_nonblank_line(prompt)
+    task = re.sub(r"^task:\s*", "", task, flags=re.IGNORECASE) or invocation
+    return f"use when this task comes up in this repository: {task}"
+
+
+def _subagent_description(repo_root: Path, conjurings: list[str]) -> str:
+    topics = []
+    for name in conjurings:
+        _, heading = _first_nonblank_line(load_text(repo_root, "conjurings", name))
+        topics.append(heading.lstrip("#").strip() or name)
+    profile = "; ".join(topics)
+    return f"use when work in this repository needs this behavior profile: {profile}"
+
+
 def write_skill(
     repo_root: Path, agent_name: str, invocation: str, skill_name: str, prompt: str
 ) -> Path:
@@ -169,7 +210,8 @@ def write_skill(
 
     skill_path = agent.skill_path(repo_root, skill_name)
     content = (
-        f"# {skill_name}\n\n"
+        _frontmatter(skill_name, _skill_description(invocation, prompt))
+        + f"# {skill_name}\n\n"
         "use this skill when this recurring task appears in this repository.\n\n"
         "## generated from\n\n"
         f"- invocation: {invocation}\n"
@@ -203,7 +245,8 @@ def write_subagent(
     subagent_path = agent.subagent_path(repo_root, subagent_name)
     profile = ", ".join(conjurings)
     content = (
-        f"# {subagent_name}\n\n"
+        _frontmatter(subagent_name, _subagent_description(repo_root, conjurings))
+        + f"# {subagent_name}\n\n"
         "use this subagent when this repository needs this persistent behavior profile.\n\n"
         "## generated from\n\n"
         f"- conjurings: {profile}\n"

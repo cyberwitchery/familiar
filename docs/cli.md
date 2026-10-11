@@ -28,8 +28,9 @@ familiar conjure <agent> <conjurings...> [--into <path>]
 - combines core profile with specified conjurings
 - writes `AGENTS.md` (codex) or `CLAUDE.md` (claude) to repo root
 - with `--save-subagent`, also writes a subagent file:
-    - claude: `.claude/subagents/<name>/AGENT.md`
-    - codex: `.codex/subagents/<name>/AGENT.md`
+    - claude: `.claude/agents/<name>.md`
+    - codex: not supported, familiar reports an error
+- a subagent file starts with `name` and `description` frontmatter; the description lists the first line of each conjuring, as `familiar list -v` shows it
 
 **examples:**
 
@@ -42,7 +43,7 @@ familiar conjure claude python --into /path/to/repo
 
 # export conjurings as subagents
 familiar conjure claude python sec --save-subagent
-familiar conjure codex rust infra --save-subagent --subagent-name ship_ops
+familiar conjure claude rust infra --save-subagent --subagent-name ship_ops
 
 ```
 
@@ -81,6 +82,7 @@ familiar invoke <agent> <invocation> [--into <path>] [--headless] [--kv <key=val
 - with `--save-skill`, writes a skill file and exits:
     - claude: `.claude/skills/<name>/SKILL.md`
     - codex: `.codex/skills/<name>/SKILL.md`
+- a skill file starts with `name` and `description` frontmatter; the description is the first line of the rendered invocation, without its `task:` label
 - if `--worktree` is specified:
     - creates a temporary git worktree from `HEAD`
     - copies the agent instruction file (`CLAUDE.md` or `AGENTS.md`) to the worktree

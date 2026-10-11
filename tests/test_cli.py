@@ -15,6 +15,7 @@ from familiar.cli import (
     _remove_worktree,
     _resolve_agent,
     _write_file,
+    _yaml_string,
     cmd_conjure,
     cmd_invoke,
     cmd_lint,
@@ -28,6 +29,14 @@ from familiar.cli import (
     write_skill,
     write_subagent,
 )
+
+
+def _read_frontmatter(path):
+    yaml = pytest.importorskip("yaml")
+    head, sep, body = path.read_text(encoding="utf-8").partition("\n---\n")
+    assert head.startswith("---\n")
+    assert sep
+    return yaml.safe_load(head[4:]), body
 
 
 class TestVersion:
@@ -206,6 +215,28 @@ class TestWriteFailures:
             write_subagent(tmp_path, "claude", ["python"], "my-subagent", "system")
 
 
+class TestYamlString:
+    """tests for the frontmatter scalar quoting."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            'fix "the" bug: in C:\\path # now',
+            "tab\there\nnewline\r\nline\u2028separator",
+            "del\x7f nul\x00 bom\ufeff c1\x9b",
+            "café ✓ 😀 tag\U000e0001",
+            "null",
+            "- item",
+            "",
+        ],
+    )
+    def test_round_trips_as_one_line(self, text):
+        yaml = pytest.importorskip("yaml")
+        quoted = _yaml_string(text)
+        assert "\n" not in quoted
+        assert yaml.safe_load(f"key: {quoted}") == {"key": " ".join(text.split())}
+
+
 class TestParseKv:
     """tests for key-value parsing."""
 
@@ -284,13 +315,39 @@ class TestCmdConjure:
         )
         result = cmd_conjure(args)
         assert result == 0
-        subagent = tmp_path / ".claude" / "subagents" / "python_sec" / "AGENT.md"
-        assert subagent.exists()
-        content = subagent.read_text()
-        assert "conjurings: python, sec" in content
-        assert "agent: claude" in content
+        subagent = tmp_path / ".claude" / "agents" / "python_sec.md"
+        frontmatter, body = _read_frontmatter(subagent)
+        assert frontmatter == {
+            "name": "python_sec",
+            "description": "use when work in this repository needs this "
+            "behavior profile: python; security",
+        }
+        assert "conjurings: python, sec" in body
+        assert "agent: claude" in body
 
-    def test_writes_subagent_for_codex_with_custom_name(self, tmp_path):
+    def test_subagent_frontmatter_survives_any_conjuring_heading(self, tmp_path):
+        local = tmp_path / ".familiar" / "conjurings"
+        local.mkdir(parents=True)
+        (local / "weird.md").write_text(
+            '\n## ops: "prod" \\ #1\tcafé\x7f\n\nbody\n', encoding="utf-8"
+        )
+        (local / "bare.md").write_text("#\n\nbody\n")
+        args = argparse.Namespace(
+            agent="claude",
+            conjurings=["weird", "bare"],
+            into=str(tmp_path),
+            save_subagent=True,
+            subagent_name="null",
+        )
+        cmd_conjure(args)
+        frontmatter, _ = _read_frontmatter(tmp_path / ".claude" / "agents" / "null.md")
+        assert frontmatter == {
+            "name": "null",
+            "description": "use when work in this repository needs this "
+            'behavior profile: ops: "prod" \\ #1 café\x7f; bare',
+        }
+
+    def test_codex_reports_no_subagent_support(self, tmp_path):
         args = argparse.Namespace(
             agent="codex",
             conjurings=["rust", "infra"],
@@ -298,13 +355,9 @@ class TestCmdConjure:
             save_subagent=True,
             subagent_name="ship_ops",
         )
-        result = cmd_conjure(args)
-        assert result == 0
-        subagent = tmp_path / ".codex" / "subagents" / "ship_ops" / "AGENT.md"
-        assert subagent.exists()
-        content = subagent.read_text()
-        assert "conjurings: rust, infra" in content
-        assert "agent: codex" in content
+        with pytest.raises(CliError, match="agent does not support subagents: codex"):
+            cmd_conjure(args)
+        assert not (tmp_path / ".codex").exists()
 
     def test_invalid_subagent_name_raises(self, tmp_path):
         args = argparse.Namespace(
@@ -489,11 +542,49 @@ class TestCmdInvoke:
             result = cmd_invoke(args)
             assert result == 0
             skill = tmp_path / ".claude" / "skills" / "explain" / "SKILL.md"
-            assert skill.exists()
-            content = skill.read_text()
-            assert "invocation: explain" in content
-            assert "agent: claude" in content
+            frontmatter, body = _read_frontmatter(skill)
+            assert frontmatter == {
+                "name": "explain",
+                "description": "use when this task comes up in this repository: "
+                "explain code or concepts.",
+            }
+            assert "invocation: explain" in body
+            assert "agent: claude" in body
             mock_run.assert_not_called()
+
+    def test_invoke_save_skill_describes_the_rendered_task(self, tmp_path):
+        local = tmp_path / ".familiar" / "invocations"
+        local.mkdir(parents=True)
+        (local / "fix.md").write_text(
+            'TASK: fix "$1": see C:\\tmp # now\n\n## inputs\n\n- $1: bug\n'
+        )
+        args = argparse.Namespace(
+            agent="claude",
+            invocation="fix",
+            into=str(tmp_path),
+            headless=True,
+            auto=False,
+            dry_run=False,
+            kv=None,
+            inv_args=["the bug"],
+            worktree=False,
+            save_skill=True,
+            skill_name=None,
+        )
+        cmd_invoke(args)
+        skill = tmp_path / ".claude" / "skills" / "fix" / "SKILL.md"
+        frontmatter, _ = _read_frontmatter(skill)
+        assert frontmatter["description"] == (
+            'use when this task comes up in this repository: fix "the bug": '
+            "see C:\\tmp # now"
+        )
+
+    def test_save_skill_for_empty_prompt_is_described_by_its_invocation(self, tmp_path):
+        path = write_skill(tmp_path, "claude", "noop", "noop", "\n")
+        frontmatter, _ = _read_frontmatter(path)
+        assert frontmatter["description"] == (
+            "use when this task comes up in this repository: noop"
+        )
 
     def test_invoke_save_skill_codex_custom_name(self, tmp_path):
         with patch("familiar.cli.run_agent") as mock_run:
@@ -513,10 +604,14 @@ class TestCmdInvoke:
             result = cmd_invoke(args)
             assert result == 0
             skill = tmp_path / ".codex" / "skills" / "cleanup_refactor" / "SKILL.md"
-            assert skill.exists()
-            content = skill.read_text()
-            assert "invocation: refactor" in content
-            assert "agent: codex" in content
+            frontmatter, body = _read_frontmatter(skill)
+            assert frontmatter == {
+                "name": "cleanup_refactor",
+                "description": "use when this task comes up in this repository: "
+                "refactor code without changing behavior.",
+            }
+            assert "invocation: refactor" in body
+            assert "agent: codex" in body
             mock_run.assert_not_called()
 
     def test_invoke_save_skill_invalid_name(self, tmp_path):

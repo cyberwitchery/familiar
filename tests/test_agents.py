@@ -165,14 +165,14 @@ class TestCodexAgent:
         path = agent.skill_path(tmp_path, "refactor")
         assert path == tmp_path / ".codex" / "skills" / "refactor" / "SKILL.md"
 
-    def test_supports_subagents(self):
+    def test_does_not_support_subagents(self):
         agent = CodexAgent()
-        assert agent.supports_subagents() is True
+        assert agent.supports_subagents() is False
 
-    def test_subagent_path(self, tmp_path):
+    def test_subagent_path_raises(self, tmp_path):
         agent = CodexAgent()
-        path = agent.subagent_path(tmp_path, "python_sec")
-        assert path == tmp_path / ".codex" / "subagents" / "python_sec" / "AGENT.md"
+        with pytest.raises(ValueError, match="does not support subagents: codex"):
+            agent.subagent_path(tmp_path, "python_sec")
 
     def test_run_headless(self, tmp_path):
         agent = CodexAgent()
@@ -245,7 +245,7 @@ class TestClaudeAgent:
     def test_subagent_path(self, tmp_path):
         agent = ClaudeAgent()
         path = agent.subagent_path(tmp_path, "python_sec")
-        assert path == tmp_path / ".claude" / "subagents" / "python_sec" / "AGENT.md"
+        assert path == tmp_path / ".claude" / "agents" / "python_sec.md"
 
     def test_run_headless(self, tmp_path):
         agent = ClaudeAgent()

@@ -51,7 +51,6 @@ class CodexAgent(Agent):
     name = "codex"
     output_file = "AGENTS.md"
     skill_dir = ".codex/skills"
-    subagent_dir = ".codex/subagents"
 
     def run(
         self, repo_root: Path, prompt: str, headless: bool, auto: bool = False
@@ -75,7 +74,10 @@ class ClaudeAgent(Agent):
     name = "claude"
     output_file = "CLAUDE.md"
     skill_dir = ".claude/skills"
-    subagent_dir = ".claude/subagents"
+    subagent_dir = ".claude/agents"
+
+    def subagent_path(self, repo_root: Path, subagent_name: str) -> Path:
+        return repo_root / ".claude" / "agents" / f"{subagent_name}.md"
 
     def run(
         self, repo_root: Path, prompt: str, headless: bool, auto: bool = False
