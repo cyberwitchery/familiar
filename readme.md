@@ -40,11 +40,11 @@ conjure conjurings to create system instructions for an agent:
 familiar conjure codex rust infra sec
 ```
 
-save composed conjurings as a reusable subagent:
+save composed conjurings as a reusable claude subagent:
 
 ```bash
 familiar conjure claude python sec --save-subagent
-familiar conjure codex rust infra --save-subagent --subagent-name ship_ops
+familiar conjure claude rust infra --save-subagent --subagent-name ship_ops
 ```
 
 save an invocation as a reusable skill:
