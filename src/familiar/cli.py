@@ -491,7 +491,10 @@ def main() -> None:
         "--into", help="target repo path (default: current directory)"
     )
     list_cmd.add_argument(
-        "-v", "--verbose", action="store_true", help="show first line of each file"
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="show first non-blank line of each file",
     )
     list_cmd.set_defaults(func=cmd_list)
 
