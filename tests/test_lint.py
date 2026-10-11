@@ -488,6 +488,204 @@ an example of what to write:
         messages = lint_invocation(content, "test.md")
         assert messages == []
 
+    @pytest.mark.parametrize("label", ["", "## "])
+    def test_inputs_section_ends_where_the_next_section_starts(self, label):
+        content = """task: build something {{flavor}}
+
+LABELinputs
+- $1 crate_name (required): the crate to build
+
+LABELsteps
+- build it as {{flavor}}
+- pass $2 crate_name along
+
+LABELoutput
+- results
+""".replace("LABEL", label)
+        messages = lint_invocation(content, "test.md")
+        assert [m.message for m in messages] == [
+            "placeholder '{{flavor}}' may not be documented in inputs",
+            "placeholder '$2' may not be documented in inputs",
+        ]
+
+    def test_hash_line_that_is_not_a_heading_does_not_end_inputs_section(self):
+        content = """task: do something with {{target}}
+
+## inputs
+
+#tag
+
+- {{target}}: the file to operate on
+
+## output
+
+- results
+"""
+        assert lint_invocation(content, "test.md") == []
+
+    def test_label_like_line_does_not_end_a_heading_inputs_section(self):
+        content = """task: do something with {{target}}
+
+## inputs
+
+required:
+
+- {{target}}: the file to operate on
+
+## output
+
+- results
+"""
+        assert lint_invocation(content, "test.md") == []
+
+    def test_loose_list_stays_in_a_bare_inputs_section(self):
+        content = """task: do something with {{target}} in {{mode}}
+
+inputs
+
+- {{target}}: the file to operate on
+
+  relative to the repository root
+
+- {{mode}}: how to operate on it
+
+steps
+
+- run it
+
+output
+
+- results
+"""
+        assert lint_invocation(content, "test.md") == []
+
+    def test_heading_indented_three_spaces_ends_inputs_section(self):
+        content = """task: do something with {{target}}
+
+## inputs
+
+other: something else
+
+   ## notes
+
+- {{target}} is described here, outside the inputs section
+
+## output
+
+- results
+"""
+        messages = lint_invocation(content, "test.md")
+        assert [m.message for m in messages] == [
+            "placeholder '{{target}}' may not be documented in inputs"
+        ]
+
+    @pytest.mark.parametrize(
+        "example", ["    # run it like this", "- for example:\n  # run it like this"]
+    )
+    def test_indented_hash_line_does_not_end_inputs_section(self, example):
+        content = """task: do something with {{target}}
+
+## inputs
+
+EXAMPLE
+
+- {{target}}: the file to operate on
+
+## output
+
+- results
+""".replace("EXAMPLE", example)
+        assert lint_invocation(content, "test.md") == []
+
+    def test_fenced_comment_does_not_end_a_bare_inputs_section(self):
+        content = """task: do something with {{target}}
+
+inputs
+
+```sh
+# run it like this
+familiar invoke thing
+```
+
+- {{target}}: the file to operate on
+
+output
+
+- results
+"""
+        assert lint_invocation(content, "test.md") == []
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            (
+                "| input | meaning |\n|-------|---------|\n"
+                "| $1 crate_name | the crate to build |\n"
+                "| {{flavor}} | `debug` or `release` |"
+            ),
+            "{{flavor}} is the build flavor and $1 crate_name the crate to build",
+        ],
+    )
+    def test_table_or_prose_stays_in_a_bare_inputs_section(self, body):
+        content = """task: build something {{flavor}}
+
+inputs
+
+BODY
+
+steps
+- build $1 crate_name as {{flavor}}
+
+output
+- the build log
+""".replace("BODY", body)
+        assert lint_invocation(content, "test.md") == []
+
+    @pytest.mark.parametrize("label", ["Steps:", "steps (in order)"])
+    def test_label_with_colon_or_parenthetical_ends_a_bare_inputs_section(self, label):
+        content = """task: build something {{flavor}}
+
+inputs
+- $1 crate_name: the crate to build
+
+LABEL
+- build $1 crate_name as {{flavor}}
+
+output
+- the build log
+""".replace("LABEL", label)
+        assert [m.message for m in lint_invocation(content, "test.md")] == [
+            "placeholder '{{flavor}}' may not be documented in inputs"
+        ]
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "required:\n- {{target}}: the file to operate on\n- {{mode}}: how",
+            (
+                "- {{target}}: the file to operate on, relative to the repository\n"
+                "root\n"
+                "- {{mode}}: how to operate on it"
+            ),
+            (
+                "\n<details>\nexample\n</details>\n\n"
+                "- {{target}}: the file to operate on\n"
+                "- {{mode}}: how to operate on it"
+            ),
+        ],
+    )
+    def test_continued_paragraph_and_html_stay_in_a_bare_inputs_section(self, body):
+        content = """task: do something with {{target}} in {{mode}}
+
+inputs
+BODY
+
+output
+
+- results
+""".replace("BODY", body)
+        assert lint_invocation(content, "test.md") == []
+
     def test_positional_placeholder_not_matched_as_prefix(self):
         content = """task: process $1 and $10
 
@@ -524,7 +722,7 @@ class TestContainerAwareFences:
 
     @staticmethod
     def _unfenced(text):
-        return [line for _, line in _unfenced_lines(text)]
+        return [line for _, line, _ in _unfenced_lines(text)]
 
     def test_bullet_nested_fence_with_indented_closer_does_not_swallow_the_file(self):
         content = """task: do something with {{target}}
@@ -602,7 +800,7 @@ class TestHtmlBlocks:
 
     @staticmethod
     def _unfenced(text):
-        return [line for _, line in _unfenced_lines(text)]
+        return [line for _, line, _ in _unfenced_lines(text)]
 
     def test_details_wrapping_an_example_does_not_swallow_the_file(self):
         content = """task: do something with {{target}}

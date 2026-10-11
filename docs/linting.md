@@ -29,7 +29,7 @@ conjurings in `.familiar/conjurings/*.md` or built-ins.
 | level | rule |
 |-------|------|
 | error | file is empty |
-| warning | first line is not a markdown heading (`# ...`) |
+| warning | first non-blank line is not a markdown heading (`# ...`) |
 
 ### invocations
 
@@ -38,7 +38,7 @@ invocations in `.familiar/invocations/*.md` or built-ins.
 | level | rule |
 |-------|------|
 | error | file is empty |
-| warning | first line is not a task verb (see below) |
+| warning | first non-blank line is not a task verb (see below) |
 | warning | missing `inputs` or `arguments` section |
 | warning | missing `output` or `deliverables` section |
 | warning | placeholder `{{name}}` not documented in content |
@@ -52,7 +52,7 @@ invocations in `.familiar/invocations/*.md` or built-ins.
 
 ## placeholder detection
 
-the linter checks that placeholders are documented in the file. it prioritizes searching the `inputs` or `arguments` section if one exists. snippet includes are expanded first, so a placeholder that only appears inside an included snippet is still checked.
+the linter checks that placeholders are documented in the file. if the file has an `inputs` or `arguments` section, only that section is searched; otherwise the whole file is. a `## inputs` section ends at the next `#` heading, which needs a space after its `#`s, so a line like `#tag` does not end it. a bare `inputs` label's section ends at the next `#` heading or at the next bare label: a paragraph outside a list item or block quote whose first line is a single word, optionally followed by a parenthetical and a colon, such as `steps`, `output:` or `steps (in order)`. a list, a table or prose under the label stays in the section. nothing inside a code fence ends a section, and without a later heading or bare label the section runs to the end of the file. snippet includes are expanded first, so a placeholder that only appears inside an included snippet is still checked.
 
 **positional placeholders:** `$1`, `$2`, ..., `$ARGUMENTS`
 

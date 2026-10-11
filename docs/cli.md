@@ -126,7 +126,7 @@ familiar list [kind] [--into <path>] [-v|--verbose]
 | option | description |
 |--------|-------------|
 | `--into` | target repository path (default: current directory) |
-| `-v`, `--verbose` | show first line of each file |
+| `-v`, `--verbose` | show first non-blank line of each file |
 
 **behavior:**
 

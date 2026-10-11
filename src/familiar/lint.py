@@ -53,12 +53,16 @@ _INPUTS_SECTION = re.compile(
     r"^(##\s+)?(inputs?|arguments?)(\s*\([^)]+\))?:?\s*$", re.IGNORECASE
 )
 _OUTPUT_SECTION = re.compile(r"^(##\s+)?(outputs?|deliverables?):?\s*$", re.IGNORECASE)
+# any bare label: one word, an optional parenthetical, an optional colon
+_BARE_LABEL = re.compile(r"^[a-z]\w*(\s*\([^)]+\))?:?\s*$", re.IGNORECASE)
 _FENCE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})(?P<info>.*)$")
 _LIST_ITEM = re.compile(r"^( {0,3})([-+*]|\d{1,9})([.)]?)( +|$)")
 _ATX_HEADING = re.compile(r"^ {0,3}#{1,6}(?: |$)")
 
 _QUOTE = "quote"
 _ITEM = "item"
+_HEADING = "heading"
+_PARAGRAPH = "paragraph"
 
 _HTML_BLOCK_NAMES = (
     "address|article|aside|base|basefont|blockquote|body|caption|center|col|"
@@ -172,8 +176,11 @@ def _opens_html(rest: str, paragraph: bool) -> int | None:
     return None
 
 
-def _unfenced_lines(text: str) -> Iterator[tuple[int, str]]:
-    """yield ``(offset, line)`` for every line of ``text`` outside a fenced code block.
+def _unfenced_lines(text: str) -> Iterator[tuple[int, str, str | None]]:
+    """yield ``(offset, line, block)`` for every line of ``text`` outside a fenced code block.
+
+    ``block`` is ``_HEADING`` or ``_PARAGRAPH`` when the line starts an atx heading
+    or a paragraph outside every block quote and list item, else ``None``.
 
     fence indentation is measured from the content column of the block quotes and
     list items open around it. an unclosed fence runs to the end of its container,
@@ -220,7 +227,7 @@ def _unfenced_lines(text: str) -> Iterator[tuple[int, str]]:
             else:
                 if end is not None and end.search(expanded[col:]):
                     html = None
-                yield offset, line
+                yield offset, line, None
                 offset += len(line) + 1
                 continue
 
@@ -238,6 +245,7 @@ def _unfenced_lines(text: str) -> Iterator[tuple[int, str]]:
             if opened is not None:
                 end = _HTML_BLOCKS[opened][1]
                 html = None if end is not None and end.search(rest) else opened
+        continued = paragraph
         paragraph = (
             opened is None
             and bool(rest.strip())
@@ -245,24 +253,34 @@ def _unfenced_lines(text: str) -> Iterator[tuple[int, str]]:
             and (paragraph or not rest.startswith("    "))
         )
 
-        yield offset, line
+        block = None
+        if not stack and _ATX_HEADING.match(rest):
+            block = _HEADING
+        elif not stack and paragraph and not continued:
+            block = _PARAGRAPH
+        yield offset, line, block
         offset += len(line) + 1
 
 
-def _next_heading_offset(text: str) -> int | None:
-    """offset of the first line starting with ``#`` outside a fenced code block."""
-    for offset, line in _unfenced_lines(text):
-        if line.startswith("#"):
-            return offset
-    return None
+def _section(pattern: re.Pattern[str], text: str) -> str | None:
+    """body of the first section ``pattern`` labels outside a fenced block, or ``None``.
 
-
-def _section_end_offset(pattern: re.Pattern[str], text: str) -> int | None:
-    """offset just past the first line matching ``pattern`` outside a fenced block."""
-    for offset, line in _unfenced_lines(text):
+    ``pattern``'s first group is the ``##`` of a heading label. a heading's section
+    runs to the next heading; a bare label's also ends at the next paragraph
+    outside every block quote and list item that starts with a bare label.
+    """
+    lines = _unfenced_lines(text)
+    for offset, line, _ in lines:
         match = pattern.match(line)
         if match:
-            return offset + match.end()
+            start = offset + match.end()
+            bare = not match.group(1)
+            for end, after, block in lines:
+                if block == _HEADING or (
+                    bare and block == _PARAGRAPH and _BARE_LABEL.match(after)
+                ):
+                    return text[start:end]
+            return text[start:]
     return None
 
 
@@ -306,16 +324,8 @@ def _check_placeholder_docs(
     messages: list[LintMessage] = []
 
     # loose check: prefer the inputs section if it exists, else the whole file
-    start = _section_end_offset(_INPUTS_SECTION, doc_content)
-    if start is not None:
-        next_heading = _next_heading_offset(doc_content[start:])
-        search_area = (
-            doc_content[start : start + next_heading]
-            if next_heading is not None
-            else doc_content[start:]
-        ).lower()
-    else:
-        search_area = doc_content.lower()
+    inputs = _section(_INPUTS_SECTION, doc_content)
+    search_area = (doc_content if inputs is None else inputs).lower()
 
     for placeholder in named:
         tag = f"{{{{{placeholder.lower()}}}}}"
@@ -386,7 +396,7 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
             )
         )
 
-    if _section_end_offset(_INPUTS_SECTION, content) is None:
+    if _section(_INPUTS_SECTION, content) is None:
         messages.append(
             LintMessage(
                 level="warning",
@@ -396,7 +406,7 @@ def lint_invocation(content: str, name: str) -> list[LintMessage]:
             )
         )
 
-    if _section_end_offset(_OUTPUT_SECTION, content) is None:
+    if _section(_OUTPUT_SECTION, content) is None:
         messages.append(
             LintMessage(
                 level="warning",
