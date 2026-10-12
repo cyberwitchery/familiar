@@ -113,9 +113,10 @@ class TestLoadText:
         result = load_text(tmp_path, "conjurings", "custom")
         assert result == "my custom template"
 
-    def test_invalid_name_raises(self, tmp_path):
-        with pytest.raises(NotFoundError, match="invalid"):
-            load_text(tmp_path, "conjurings", "../../../etc/passwd")
+    @pytest.mark.parametrize("name", ["../../../etc/passwd", "abc\n"])
+    def test_invalid_name_raises(self, tmp_path, name):
+        with pytest.raises(NotFoundError, match="invalid conjuring name"):
+            load_text(tmp_path, "conjurings", name)
 
     def test_unknown_template_raises(self, tmp_path):
         with pytest.raises(NotFoundError, match="unknown conjuring"):
@@ -486,6 +487,10 @@ class TestLoadSnippet:
     def test_single_segment_rejected(self, tmp_path):
         with pytest.raises(NotFoundError, match="invalid snippet path"):
             load_snippet(tmp_path, "nosubdir")
+
+    def test_invalid_character_after_valid_prefix_rejected(self, tmp_path):
+        with pytest.raises(NotFoundError, match="invalid snippet path"):
+            load_snippet(tmp_path, "python/github ci.yml")
 
     def test_unknown_snippet_raises(self, tmp_path):
         with pytest.raises(NotFoundError, match="unknown snippet"):

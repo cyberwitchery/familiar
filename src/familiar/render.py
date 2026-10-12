@@ -14,8 +14,8 @@ except ImportError:
     from importlib.abc import Traversable
 from pathlib import Path
 
-_VALID_NAME = re.compile(r"^[a-z0-9_-]+$")
-_VALID_SNIPPET_PATH = re.compile(r"^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)+$")
+_VALID_NAME = re.compile(r"[a-z0-9_-]+")
+_VALID_SNIPPET_PATH = re.compile(r"[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)+")
 _SNIPPET_INCLUDE = re.compile(r"{{>\s*snippet:([^}]+?)\s*}}")
 _MAX_INCLUDE_DEPTH = 50
 
@@ -70,7 +70,7 @@ def _escape_undecodable(text: str) -> str:
 
 def load_text(repo_root: Path, kind: str, name: str) -> str:
     """load a conjuring or invocation; local overrides in .familiar override package data."""
-    if not _VALID_NAME.match(name):
+    if not _VALID_NAME.fullmatch(name):
         raise NotFoundError(f"invalid {kind.rstrip('s')} name: {name}")
     override = repo_root / ".familiar" / kind / f"{name}.md"
     text = _read_override(override, f"{kind.rstrip('s')} '{name}'")
@@ -90,7 +90,7 @@ def load_snippet(repo_root: Path, path: str) -> str:
     path = path.strip()
     if ".." in path.split("/"):
         raise NotFoundError(f"invalid snippet path: {path}")
-    if not _VALID_SNIPPET_PATH.match(path):
+    if not _VALID_SNIPPET_PATH.fullmatch(path):
         raise NotFoundError(f"invalid snippet path: {path}")
 
     text = _read_override(

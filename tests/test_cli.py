@@ -359,16 +359,18 @@ class TestCmdConjure:
             cmd_conjure(args)
         assert not (tmp_path / ".codex").exists()
 
-    def test_invalid_subagent_name_raises(self, tmp_path):
+    @pytest.mark.parametrize("name", ["Not Valid", "abc\n"])
+    def test_invalid_subagent_name_raises(self, tmp_path, name):
         args = argparse.Namespace(
             agent="claude",
             conjurings=["python"],
             into=str(tmp_path),
             save_subagent=True,
-            subagent_name="Not Valid",
+            subagent_name=name,
         )
         with pytest.raises(CliError, match="invalid subagent name"):
             cmd_conjure(args)
+        assert not (tmp_path / ".claude").exists()
 
 
 class TestCmdInvoke:
@@ -614,7 +616,8 @@ class TestCmdInvoke:
             assert "agent: codex" in body
             mock_run.assert_not_called()
 
-    def test_invoke_save_skill_invalid_name(self, tmp_path):
+    @pytest.mark.parametrize("name", ["Not Valid", "abc\n"])
+    def test_invoke_save_skill_invalid_name(self, tmp_path, name):
         args = argparse.Namespace(
             agent="claude",
             invocation="explain",
@@ -626,10 +629,11 @@ class TestCmdInvoke:
             inv_args=["some code"],
             worktree=False,
             save_skill=True,
-            skill_name="Not Valid",
+            skill_name=name,
         )
         with pytest.raises(CliError, match="invalid skill name"):
             cmd_invoke(args)
+        assert not (tmp_path / ".claude").exists()
 
 
 class TestInvokeKvFlag:
