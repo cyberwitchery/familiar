@@ -69,7 +69,7 @@ familiar invoke <agent> <invocation> [--into <path>] [--headless] [--kv <key=val
 |--------|-------------|
 | `--into` | target repository path (default: current directory) |
 | `--headless` | run without interactive ui |
-| `--auto` | skip agent permission prompts (`--full-auto` for codex, `--dangerously-skip-permissions` for claude) |
+| `--auto` | skip agent permission prompts (`--sandbox workspace-write` for codex, plus `--ask-for-approval on-request` when interactive; `--dangerously-skip-permissions` for claude) |
 | `--dry-run` | print rendered prompt and exit (does not run the agent) |
 | `--worktree` | run in a separate git worktree to avoid interfering with local changes |
 | `--save-skill` | write rendered invocation as a reusable skill and exit |

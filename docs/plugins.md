@@ -90,7 +90,7 @@ familiar invoke --help  # should show myagent in choices
 | `output_file` | `str` | filename for conjured instructions |
 | `run(repo_root, prompt, headless, auto=False)` | `-> int` | execute the agent, return exit code |
 
-familiar passes `auto` as a keyword argument on every `familiar invoke`, so `run` must accept it. it is `True` when the user passes `--auto`, and asks the agent to skip its tool's permission prompts, the way the built-in agents pass `--full-auto` to codex and `--dangerously-skip-permissions` to claude.
+familiar passes `auto` as a keyword argument on every `familiar invoke`, so `run` must accept it. it is `True` when the user passes `--auto`, and asks the agent to skip its tool's permission prompts, the way the built-in agents run codex in its `workspace-write` sandbox and pass `--dangerously-skip-permissions` to claude.
 
 ---
 

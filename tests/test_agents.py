@@ -214,7 +214,42 @@ class TestCodexAgent:
             result = agent.run(tmp_path, "test prompt", headless=False, auto=True)
             assert result == 0
             mock_call.assert_called_once_with(
-                ["codex", "--full-auto", "-C", str(tmp_path), "test prompt"]
+                [
+                    "codex",
+                    "--ask-for-approval",
+                    "on-request",
+                    "--sandbox",
+                    "workspace-write",
+                    "-C",
+                    str(tmp_path),
+                    "test prompt",
+                ]
+            )
+
+    def test_run_headless_auto(self, tmp_path):
+        agent = CodexAgent()
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+
+        with patch(
+            "familiar.agents.subprocess.run", return_value=mock_result
+        ) as mock_run:
+            result = agent.run(tmp_path, "test prompt", headless=True, auto=True)
+            assert result == 0
+            mock_run.assert_called_once_with(
+                [
+                    "codex",
+                    "exec",
+                    "--sandbox",
+                    "workspace-write",
+                    "--skip-git-repo-check",
+                    "-C",
+                    str(tmp_path),
+                    "-",
+                ],
+                input="test prompt",
+                text=True,
+                check=False,
             )
 
 
