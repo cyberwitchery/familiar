@@ -56,16 +56,18 @@ class CodexAgent(Agent):
         self, repo_root: Path, prompt: str, headless: bool, auto: bool = False
     ) -> int:
         if headless:
-            cmd = ["codex"]
+            cmd = ["codex", "exec"]
             if auto:
-                cmd.append("--full-auto")
-            cmd.extend(["exec", "--skip-git-repo-check", "-C", str(repo_root), "-"])
+                cmd.extend(["--sandbox", "workspace-write"])
+            cmd.extend(["--skip-git-repo-check", "-C", str(repo_root), "-"])
             proc = subprocess.run(cmd, input=prompt, text=True, check=False)
             return proc.returncode
         else:
             cmd = ["codex"]
             if auto:
-                cmd.append("--full-auto")
+                cmd.extend(
+                    ["--ask-for-approval", "on-request", "--sandbox", "workspace-write"]
+                )
             cmd.extend(["-C", str(repo_root), prompt])
             return subprocess.call(cmd)
 
