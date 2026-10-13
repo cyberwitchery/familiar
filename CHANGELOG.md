@@ -1,6 +1,6 @@
 # changelog
 
-## Unreleased
+## [0.6.2] - 2026-10-14
 
 - `familiar invoke codex --auto` no longer fails with `unexpected argument '--full-auto' found` on codex 0.130 and later, which dropped that flag: familiar now passes the flags it stood for, `--sandbox workspace-write` and, in interactive mode, `--ask-for-approval on-request`, which older codex releases accept too; on releases that ignored a `--full-auto` placed before `exec`, such as 0.46, `--headless --auto` now runs codex in the workspace-write sandbox instead of read-only
 - `familiar conjure` and `familiar invoke` now reject a conjuring, invocation, subagent or skill name that ends in a newline, as they reject any other invalid name: `--subagent-name` and `--skill-name` accepted such a name and wrote the subagent or skill to a path containing the newline, such as `.claude/agents/abc\n.md`, and a conjuring or invocation file in `.familiar/` whose name ended in a newline was loaded like any other; `familiar lint` now reports such a file as an invalid name
