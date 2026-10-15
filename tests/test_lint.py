@@ -1000,6 +1000,25 @@ class TestHtmlBlocks:
         assert self._unfenced(text) == expected
 
 
+class TestLintAll:
+    """tests for linting all conjurings and invocations."""
+
+    def test_lint_all_builtins(self, tmp_path):
+        messages = lint_all(tmp_path)
+        errors = [m for m in messages if m.level == "error"]
+        assert errors == [], f"Unexpected errors: {errors}"
+
+    def test_lint_all_with_local_override(self, tmp_path):
+        templates = tmp_path / ".familiar" / "conjurings"
+        templates.mkdir(parents=True)
+        (templates / "bad.md").write_text("no heading")
+
+        messages = lint_all(tmp_path)
+        local_warnings = [m for m in messages if "bad.md" in m.file]
+        assert len(local_warnings) == 1
+        assert "heading" in local_warnings[0].message
+
+
 class TestLintMessage:
     """tests for LintMessage formatting."""
 
@@ -1385,6 +1404,10 @@ class TestLintSnippetReferences:
 
 class TestLintSnippetCollection:
     """tests for linting the snippet collection itself."""
+
+    def test_builtins_clean(self, tmp_path):
+        messages = lint_snippet_collection(tmp_path)
+        assert messages == []
 
     def test_broken_include_in_local_snippet(self, tmp_path):
         snippet_dir = tmp_path / ".familiar" / "snippets" / "test"

@@ -628,6 +628,45 @@ class TestInvokeKvFlag:
 class TestCmdList:
     """tests for list command."""
 
+    def test_list_all(self, tmp_path, capsys):
+        args = argparse.Namespace(
+            kind=None,
+            into=str(tmp_path),
+            verbose=False,
+        )
+        result = cmd_list(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "conjurings:" in captured.out
+        assert "invocations:" in captured.out
+        assert "snippets:" in captured.out
+        assert "core" in captured.out
+        assert "explain" in captured.out
+
+    def test_list_conjurings(self, tmp_path, capsys):
+        args = argparse.Namespace(
+            kind="conjurings",
+            into=str(tmp_path),
+            verbose=False,
+        )
+        result = cmd_list(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "core" in captured.out
+        assert "python" in captured.out
+
+    def test_list_invocations(self, tmp_path, capsys):
+        args = argparse.Namespace(
+            kind="invocations",
+            into=str(tmp_path),
+            verbose=False,
+        )
+        result = cmd_list(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "explain" in captured.out
+        assert "refactor" in captured.out
+
     def test_list_verbose(self, tmp_path, capsys):
         args = argparse.Namespace(
             kind="conjurings",
@@ -696,6 +735,18 @@ class TestCmdList:
         assert cmd_list(args) == 0
         assert "x/a\\xffb.md (local)\n" in capsys.readouterr().out
 
+    def test_list_snippets(self, tmp_path, capsys):
+        args = argparse.Namespace(
+            kind="snippets",
+            into=str(tmp_path),
+            verbose=False,
+        )
+        result = cmd_list(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "python/pyproject.toml" in captured.out
+        assert "rust/Cargo.toml" in captured.out
+
 
 class TestCmdLint:
     """tests for lint command."""
@@ -711,6 +762,16 @@ class TestCmdLint:
         args = argparse.Namespace(into=str(tmp_path), errors_only=True)
         assert cmd_lint(args) == 1
         assert ".familiar/snippets/x/a\\xffb.md:" in capsys.readouterr().err
+
+    def test_lint_builtins_pass(self, tmp_path, capsys):
+        args = argparse.Namespace(
+            into=str(tmp_path),
+            errors_only=False,
+        )
+        result = cmd_lint(args)
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "all checks passed" in captured.out
 
     def test_lint_with_warning(self, tmp_path, capsys):
         templates = tmp_path / ".familiar" / "conjurings"

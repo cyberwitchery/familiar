@@ -148,6 +148,38 @@ class TestListIntegration:
             f"{name}\n" for name, _, _ in list_items(tmp_path, kind)
         )
 
+    def test_list_conjurings_verbose(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "familiar.cli", "list", "conjurings", "-v"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0
+        assert ":" in result.stdout
+
+    def test_list_with_local_override(self, tmp_path):
+        templates = tmp_path / ".familiar" / "conjurings"
+        templates.mkdir(parents=True)
+        (templates / "custom.md").write_text("# my custom profile")
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "familiar.cli",
+                "list",
+                "conjurings",
+                "--into",
+                str(tmp_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0
+        assert "custom (local)" in result.stdout
+
     def test_list_snippets(self):
         result = _familiar("list", "snippets")
         assert result.returncode == 0
