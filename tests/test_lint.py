@@ -1353,6 +1353,22 @@ class TestLintSnippetReferences:
         assert "snippet not found" in messages[0].message
         assert messages[0].line == 1
 
+    def test_missing_snippet_reference_split_across_lines(self, tmp_path):
+        content = "{{> snippet:\n  missing/a.txt}}\n{{>\nsnippet:missing/b.txt\n}}"
+        messages = lint_snippet_references(tmp_path, content, "test.md")
+        assert [(m.line, m.message) for m in messages] == [
+            (1, "snippet not found: missing/a.txt"),
+            (3, "snippet not found: missing/b.txt"),
+        ]
+
+    def test_valid_snippet_reference_split_across_lines(self, tmp_path):
+        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
+        snippet_dir.mkdir(parents=True)
+        (snippet_dir / "file.txt").write_text("content")
+
+        content = "intro\n{{>\n  snippet:test/file.txt\n}}\nend"
+        assert lint_snippet_references(tmp_path, content, "test.md") == []
+
     def test_multiple_references(self, tmp_path):
         snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
         snippet_dir.mkdir(parents=True)

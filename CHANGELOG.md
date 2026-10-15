@@ -1,5 +1,9 @@
 # changelog
 
+## Unreleased
+
+- `familiar lint` now checks a `{{> snippet:...}}` include written across several lines, which `conjure` and `invoke` expand like any other: lint read includes one line at a time and never saw such an include, so a broken one passed lint clean and only failed at `conjure`/`invoke`; it is now reported on the line where the include starts
+
 ## [0.6.2] - 2026-10-14
 
 - `familiar invoke codex --auto` no longer fails with `unexpected argument '--full-auto' found` on codex 0.130 and later, which dropped that flag: familiar now passes the flags it stood for, `--sandbox workspace-write` and, in interactive mode, `--ask-for-approval on-request`, which older codex releases accept too; on releases that ignored a `--full-auto` placed before `exec`, such as 0.46, `--headless --auto` now runs codex in the workspace-write sandbox instead of read-only

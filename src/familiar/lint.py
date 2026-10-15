@@ -451,40 +451,42 @@ def lint_snippet_references(
     each top-level ``{{> snippet:path}}`` directive is validated along with
     every snippet it pulls in, mirroring how the renderer expands includes at
     conjure/invoke time. a broken reference, an include cycle, or an over-deep
-    chain is reported against the line of the top-level directive.
+    chain is reported against the line the top-level directive starts on.
     """
     messages: list[LintMessage] = []
-    for i, line in enumerate(content.split("\n"), 1):
-        for m in _SNIPPET_INCLUDE.finditer(line):
-            snippet_path = m.group(1).strip()
-            try:
-                body = load_snippet(repo_root, snippet_path)
-            except UnreadableError as e:
-                messages.append(
-                    LintMessage(level="error", file=name, line=i, message=str(e))
+    i, pos = 1, 0
+    for m in _SNIPPET_INCLUDE.finditer(content):
+        i += content.count("\n", pos, m.start())
+        pos = m.start()
+        snippet_path = m.group(1).strip()
+        try:
+            body = load_snippet(repo_root, snippet_path)
+        except UnreadableError as e:
+            messages.append(
+                LintMessage(level="error", file=name, line=i, message=str(e))
+            )
+            continue
+        except NotFoundError:
+            messages.append(
+                LintMessage(
+                    level="error",
+                    file=name,
+                    line=i,
+                    message=f"snippet not found: {snippet_path}",
                 )
-                continue
-            except NotFoundError:
-                messages.append(
-                    LintMessage(
-                        level="error",
-                        file=name,
-                        line=i,
-                        message=f"snippet not found: {snippet_path}",
-                    )
+            )
+            continue
+        try:
+            _expand_includes(repo_root, body, [snippet_path])
+        except NotFoundError as e:
+            messages.append(
+                LintMessage(
+                    level="error",
+                    file=name,
+                    line=i,
+                    message=str(e),
                 )
-                continue
-            try:
-                _expand_includes(repo_root, body, [snippet_path])
-            except NotFoundError as e:
-                messages.append(
-                    LintMessage(
-                        level="error",
-                        file=name,
-                        line=i,
-                        message=str(e),
-                    )
-                )
+            )
     return messages
 
 
