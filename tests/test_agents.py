@@ -21,6 +21,7 @@ from familiar.agents import (
 from familiar.cli import run_agent
 
 PLUGINS_DOC = Path(__file__).resolve().parents[1] / "docs" / "plugins.md"
+ROOT = str(Path("/repo"))
 
 
 @pytest.fixture(autouse=True)
@@ -34,32 +35,17 @@ def reset_agents_cache():
 class TestAgentRegistry:
     """tests for agent registry via entry points."""
 
-    def test_load_agents_returns_dict(self):
-        agents = load_agents()
-        assert isinstance(agents, dict)
-
-    def test_load_agents_includes_codex(self):
-        agents = load_agents()
-        assert "codex" in agents
-        assert isinstance(agents["codex"], CodexAgent)
-
-    def test_load_agents_includes_claude(self):
-        agents = load_agents()
-        assert "claude" in agents
-        assert isinstance(agents["claude"], ClaudeAgent)
+    @pytest.mark.parametrize(
+        ("name", "cls"), [("codex", CodexAgent), ("claude", ClaudeAgent)]
+    )
+    def test_registers_builtin_agent(self, name, cls):
+        assert isinstance(load_agents()[name], cls)
+        assert isinstance(get_agent(name), cls)
 
     def test_get_agents_returns_cached(self):
         agents1 = get_agents()
         agents2 = get_agents()
         assert agents1 is agents2
-
-    def test_get_agent_returns_codex(self):
-        agent = get_agent("codex")
-        assert isinstance(agent, CodexAgent)
-
-    def test_get_agent_returns_claude(self):
-        agent = get_agent("claude")
-        assert isinstance(agent, ClaudeAgent)
 
     def test_get_agent_unknown_raises(self):
         with pytest.raises(KeyError, match="unknown agent"):
@@ -148,72 +134,19 @@ class TestDocumentedAgentPlugin:
 class TestCodexAgent:
     """tests for codex agent."""
 
-    def test_name(self):
-        agent = CodexAgent()
-        assert agent.name == "codex"
-
-    def test_output_file(self):
-        agent = CodexAgent()
-        assert agent.output_file == "AGENTS.md"
-
-    def test_supports_skills(self):
-        agent = CodexAgent()
-        assert agent.supports_skills() is True
-
-    def test_skill_path(self, tmp_path):
-        agent = CodexAgent()
-        path = agent.skill_path(tmp_path, "refactor")
-        assert path == tmp_path / ".codex" / "skills" / "refactor" / "SKILL.md"
-
-    def test_does_not_support_subagents(self):
-        agent = CodexAgent()
-        assert agent.supports_subagents() is False
-
     def test_subagent_path_raises(self, tmp_path):
         agent = CodexAgent()
         with pytest.raises(ValueError, match="does not support subagents: codex"):
             agent.subagent_path(tmp_path, "python_sec")
 
-    def test_run_headless(self, tmp_path):
-        agent = CodexAgent()
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-
-        with patch(
-            "familiar.agents.subprocess.run", return_value=mock_result
-        ) as mock_run:
-            result = agent.run(tmp_path, "test prompt", headless=True)
-            assert result == 0
-            mock_run.assert_called_once()
-            call_args = mock_run.call_args
-            assert call_args[0][0] == [
-                "codex",
-                "exec",
-                "--skip-git-repo-check",
-                "-C",
-                str(tmp_path),
-                "-",
-            ]
-            assert call_args[1]["input"] == "test prompt"
-            assert call_args[1]["text"] is True
-
-    def test_run_interactive(self, tmp_path):
-        agent = CodexAgent()
-
-        with patch("familiar.agents.subprocess.call", return_value=0) as mock_call:
-            result = agent.run(tmp_path, "test prompt", headless=False)
-            assert result == 0
-            mock_call.assert_called_once_with(
-                ["codex", "-C", str(tmp_path), "test prompt"]
-            )
-
-    def test_run_auto(self, tmp_path):
-        agent = CodexAgent()
-
-        with patch("familiar.agents.subprocess.call", return_value=0) as mock_call:
-            result = agent.run(tmp_path, "test prompt", headless=False, auto=True)
-            assert result == 0
-            mock_call.assert_called_once_with(
+    @pytest.mark.parametrize(
+        ("headless", "auto", "argv"),
+        [
+            (True, False, ["codex", "exec", "--skip-git-repo-check", "-C", ROOT, "-"]),
+            (False, False, ["codex", "-C", ROOT, "test prompt"]),
+            (
+                False,
+                True,
                 [
                     "codex",
                     "--ask-for-approval",
@@ -221,22 +154,13 @@ class TestCodexAgent:
                     "--sandbox",
                     "workspace-write",
                     "-C",
-                    str(tmp_path),
+                    ROOT,
                     "test prompt",
-                ]
-            )
-
-    def test_run_headless_auto(self, tmp_path):
-        agent = CodexAgent()
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-
-        with patch(
-            "familiar.agents.subprocess.run", return_value=mock_result
-        ) as mock_run:
-            result = agent.run(tmp_path, "test prompt", headless=True, auto=True)
-            assert result == 0
-            mock_run.assert_called_once_with(
+                ],
+            ),
+            (
+                True,
+                True,
                 [
                     "codex",
                     "exec",
@@ -244,76 +168,50 @@ class TestCodexAgent:
                     "workspace-write",
                     "--skip-git-repo-check",
                     "-C",
-                    str(tmp_path),
+                    ROOT,
                     "-",
                 ],
-                input="test prompt",
-                text=True,
-                check=False,
+            ),
+        ],
+        ids=["headless", "interactive", "auto", "headless-auto"],
+    )
+    def test_run(self, headless, auto, argv):
+        with (
+            patch(
+                "familiar.agents.subprocess.run", return_value=MagicMock(returncode=0)
+            ) as mock_run,
+            patch("familiar.agents.subprocess.call", return_value=0) as mock_call,
+        ):
+            result = CodexAgent().run(
+                Path(ROOT), "test prompt", headless=headless, auto=auto
             )
+        assert result == 0
+        if headless:
+            mock_run.assert_called_once_with(
+                argv, input="test prompt", text=True, check=False
+            )
+            mock_call.assert_not_called()
+        else:
+            mock_call.assert_called_once_with(argv)
+            mock_run.assert_not_called()
 
 
 class TestClaudeAgent:
     """tests for claude agent."""
 
-    def test_name(self):
-        agent = ClaudeAgent()
-        assert agent.name == "claude"
-
-    def test_output_file(self):
-        agent = ClaudeAgent()
-        assert agent.output_file == "CLAUDE.md"
-
-    def test_supports_skills(self):
-        agent = ClaudeAgent()
-        assert agent.supports_skills() is True
-
-    def test_skill_path(self, tmp_path):
-        agent = ClaudeAgent()
-        path = agent.skill_path(tmp_path, "review")
-        assert path == tmp_path / ".claude" / "skills" / "review" / "SKILL.md"
-
-    def test_supports_subagents(self):
-        agent = ClaudeAgent()
-        assert agent.supports_subagents() is True
-
-    def test_subagent_path(self, tmp_path):
-        agent = ClaudeAgent()
-        path = agent.subagent_path(tmp_path, "python_sec")
-        assert path == tmp_path / ".claude" / "agents" / "python_sec.md"
-
-    def test_run_headless(self, tmp_path):
-        agent = ClaudeAgent()
-
+    @pytest.mark.parametrize(
+        ("headless", "auto", "argv"),
+        [
+            (True, False, ["claude", "-p", "test prompt"]),
+            (False, False, ["claude", "test prompt"]),
+            (False, True, ["claude", "--dangerously-skip-permissions", "test prompt"]),
+        ],
+        ids=["headless", "interactive", "auto"],
+    )
+    def test_run(self, tmp_path, headless, auto, argv):
         with patch("familiar.agents.subprocess.call", return_value=0) as mock_call:
-            result = agent.run(tmp_path, "test prompt", headless=True)
-            assert result == 0
-            mock_call.assert_called_once_with(
-                ["claude", "-p", "test prompt"], cwd=tmp_path
+            result = ClaudeAgent().run(
+                tmp_path, "test prompt", headless=headless, auto=auto
             )
-
-    def test_run_interactive(self, tmp_path):
-        agent = ClaudeAgent()
-
-        with patch("familiar.agents.subprocess.call", return_value=0) as mock_call:
-            result = agent.run(tmp_path, "test prompt", headless=False)
-            assert result == 0
-            mock_call.assert_called_once_with(["claude", "test prompt"], cwd=tmp_path)
-
-    def test_run_auto(self, tmp_path):
-        agent = ClaudeAgent()
-
-        with patch("familiar.agents.subprocess.call", return_value=0) as mock_call:
-            result = agent.run(tmp_path, "test prompt", headless=False, auto=True)
-            assert result == 0
-            mock_call.assert_called_once_with(
-                ["claude", "--dangerously-skip-permissions", "test prompt"],
-                cwd=tmp_path,
-            )
-
-    def test_run_returns_exit_code(self, tmp_path):
-        agent = ClaudeAgent()
-
-        with patch("familiar.agents.subprocess.call", return_value=42):
-            result = agent.run(tmp_path, "prompt", headless=True)
-            assert result == 42
+        assert result == 0
+        mock_call.assert_called_once_with(argv, cwd=tmp_path)

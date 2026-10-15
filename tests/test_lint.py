@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -19,7 +20,36 @@ from familiar.lint import (
     lint_template,
     load_linters,
 )
-from familiar.render import _MAX_INCLUDE_DEPTH, NotFoundError
+from familiar.render import _MAX_INCLUDE_DEPTH
+
+INPUTS_MISSING = LintMessage(
+    "warning", "test.md", None, "invocation should have an 'inputs' section"
+)
+OUTPUT_MISSING = LintMessage(
+    "warning",
+    "test.md",
+    None,
+    "invocation should have an 'output' or 'deliverables' section",
+)
+TARGET_UNDOCUMENTED = LintMessage(
+    "warning",
+    "test.md",
+    None,
+    "placeholder '{{target}}' may not be documented in inputs",
+)
+
+
+def _locked(path):
+    path.write_text("content")
+    path.chmod(0o000)
+
+
+def _invalid_utf8(path):
+    path.write_bytes(b"caf\xe9\n")
+
+
+def _dangling_symlink(path):
+    path.symlink_to(path.parent / "gone")
 
 
 class TestLintTemplate:
@@ -30,13 +60,7 @@ class TestLintTemplate:
         messages = lint_template(content, "test.md")
         assert messages == []
 
-    def test_empty_template(self):
-        messages = lint_template("", "test.md")
-        assert len(messages) == 1
-        assert messages[0].level == "error"
-        assert "empty" in messages[0].message
-
-    @pytest.mark.parametrize("content", ["\n", "  \n\t\n", "\r\n\r\n"])
+    @pytest.mark.parametrize("content", ["", "\n", "  \n\t\n", "\r\n\r\n"])
     def test_whitespace_only_template_is_empty(self, content):
         messages = lint_template(content, "test.md")
         assert messages == [LintMessage("error", "test.md", 1, "template is empty")]
@@ -47,16 +71,20 @@ class TestLintTemplate:
     def test_heading_after_leading_blank_lines(self, content):
         assert lint_template(content, "test.md") == []
 
-    def test_missing_heading_after_leading_blank_lines(self):
-        messages = lint_template("\n  \nno heading here\n", "test.md")
-        assert [(m.level, m.line) for m in messages] == [("warning", 3)]
-
-    def test_missing_heading(self):
-        content = "no heading here\njust text"
-        messages = lint_template(content, "test.md")
-        assert len(messages) == 1
-        assert messages[0].level == "warning"
-        assert "heading" in messages[0].message
+    @pytest.mark.parametrize(
+        ("content", "line"),
+        [("\n  \nno heading here\n", 3), ("no heading here\njust text", 1)],
+        ids=["after-leading-blank-lines", "first-line"],
+    )
+    def test_missing_heading(self, content, line):
+        assert lint_template(content, "test.md") == [
+            LintMessage(
+                "warning",
+                "test.md",
+                line,
+                "template should start with a markdown heading (# ...)",
+            )
+        ]
 
 
 class TestLintInvocation:
@@ -78,13 +106,7 @@ output
         messages = lint_invocation(content, "test.md")
         assert messages == []
 
-    def test_empty_invocation(self):
-        messages = lint_invocation("", "test.md")
-        assert len(messages) == 1
-        assert messages[0].level == "error"
-        assert "empty" in messages[0].message
-
-    @pytest.mark.parametrize("content", ["\n", "  \n\t\n", "\r\n\r\n"])
+    @pytest.mark.parametrize("content", ["", "\n", "  \n\t\n", "\r\n\r\n"])
     def test_whitespace_only_invocation_is_empty(self, content):
         messages = lint_invocation(content, "test.md")
         assert messages == [LintMessage("error", "test.md", 1, "invocation is empty")]
@@ -107,25 +129,23 @@ output
         )
         assert lint_invocation(content, "test.md") == []
 
-    def test_missing_task_line_after_leading_blank_lines(self):
-        content = "\n\nsome random text\n\ninputs\n- $1 name\n\noutput\n- results\n"
-        messages = lint_invocation(content, "test.md")
-        task_warnings = [m for m in messages if "task:" in m.message]
-        assert [(m.level, m.line) for m in task_warnings] == [("warning", 3)]
-
-    def test_missing_task_line(self):
-        content = """some random text
-
-inputs
-- $1 name
-
-output
-- results
-"""
-        messages = lint_invocation(content, "test.md")
-        task_warnings = [m for m in messages if "task:" in m.message]
-        assert len(task_warnings) == 1
-        assert task_warnings[0].level == "warning"
+    @pytest.mark.parametrize(
+        ("content", "line"),
+        [
+            ("\n\nsome random text\n\ninputs\n- $1 name\n\noutput\n- results\n", 3),
+            ("some random text\n\ninputs\n- $1 name\n\noutput\n- results\n", 1),
+        ],
+        ids=["after-leading-blank-lines", "first-line"],
+    )
+    def test_missing_task_line(self, content, line):
+        assert lint_invocation(content, "test.md") == [
+            LintMessage(
+                "warning",
+                "test.md",
+                line,
+                "invocation should start with 'task:' or similar verb",
+            )
+        ]
 
     def test_missing_inputs_section(self):
         content = """task: do something
@@ -134,9 +154,7 @@ output
 - results
 """
         messages = lint_invocation(content, "test.md")
-        input_warnings = [m for m in messages if "inputs" in m.message.lower()]
-        assert len(input_warnings) == 1
-        assert input_warnings[0].level == "warning"
+        assert messages == [INPUTS_MISSING]
 
     def test_missing_output_section(self):
         content = """task: do something
@@ -145,9 +163,7 @@ inputs
 - $ARGUMENTS
 """
         messages = lint_invocation(content, "test.md")
-        output_warnings = [m for m in messages if "output" in m.message.lower()]
-        assert len(output_warnings) == 1
-        assert output_warnings[0].level == "warning"
+        assert messages == [OUTPUT_MISSING]
 
     def test_accepts_various_task_verbs(self):
         for verb in [
@@ -172,105 +188,54 @@ output
             task_warnings = [m for m in messages if "task:" in m.message]
             assert task_warnings == [], f"Failed for verb: {verb}"
 
-    def test_accepts_arguments_section(self):
-        content = """task: do something
+    @pytest.mark.parametrize(
+        ("inputs", "output"),
+        [
+            ("arguments:\n- $1 name", "output"),
+            ("inputs\n- $ARGUMENTS", "deliverables"),
+            ("inputs\n- $ARGUMENTS", "outputs"),
+        ],
+        ids=["arguments", "deliverables", "outputs"],
+    )
+    def test_accepts_section_label(self, inputs, output):
+        content = f"task: do something\n\n{inputs}\n\n{output}\n- results\n"
+        assert lint_invocation(content, "test.md") == []
 
-arguments:
-- $1 name
-
-output
-- results
-"""
+    @pytest.mark.parametrize(
+        ("task", "inputs", "expected"),
+        [
+            (
+                "do something with {{myarg}}",
+                "- $ARGUMENTS",
+                ["placeholder '{{myarg}}' may not be documented in inputs"],
+            ),
+            ("do something with {{myarg}}", "- myarg (required): the argument", []),
+            (
+                "process {{name}}",
+                "- filename (required): the file to process",
+                ["placeholder '{{name}}' may not be documented in inputs"],
+            ),
+            ("implement {{spec}}", "- {{spec}} (required): feature specification", []),
+        ],
+        ids=[
+            "undocumented",
+            "documented",
+            "substring-in-other-word",
+            "tag-in-inputs-section",
+        ],
+    )
+    def test_placeholder_documentation(self, task, inputs, expected):
+        content = f"task: {task}\n\ninputs\n{inputs}\n\noutput\n- results\n"
         messages = lint_invocation(content, "test.md")
-        input_warnings = [m for m in messages if "inputs" in m.message.lower()]
-        assert input_warnings == []
+        assert messages == [
+            LintMessage("warning", "test.md", None, message) for message in expected
+        ]
 
-    def test_accepts_deliverables_section(self):
-        content = """task: do something
-
-inputs
-- $ARGUMENTS
-
-deliverables
-- results
-"""
-        messages = lint_invocation(content, "test.md")
-        output_warnings = [m for m in messages if "output" in m.message.lower()]
-        assert output_warnings == []
-
-    def test_accepts_outputs_section(self):
-        content = """task: do something
-
-inputs
-- $ARGUMENTS
-
-outputs
-- results
-"""
-        messages = lint_invocation(content, "test.md")
-        output_warnings = [m for m in messages if "output" in m.message.lower()]
-        assert output_warnings == []
-
-    def test_undocumented_placeholder_warning(self):
-        content = """task: do something with {{myarg}}
-
-inputs
-- $ARGUMENTS
-
-output
-- results
-"""
-        messages = lint_invocation(content, "test.md")
-        placeholder_warnings = [m for m in messages if "{{myarg}}" in m.message]
-        assert len(placeholder_warnings) == 1
-        assert placeholder_warnings[0].level == "warning"
-
-    def test_documented_placeholder_no_warning(self):
-        content = """task: do something with {{myarg}}
-
-inputs
-- myarg (required): the argument
-
-output
-- results
-"""
-        messages = lint_invocation(content, "test.md")
-        placeholder_warnings = [m for m in messages if "{{myarg}}" in m.message]
-        assert placeholder_warnings == []
-
-    def test_placeholder_substring_in_other_word_warns(self):
-        content = """task: process {{name}}
-
-inputs
-- filename (required): the file to process
-
-output
-- results
-"""
-        messages = lint_invocation(content, "test.md")
-        placeholder_warnings = [m for m in messages if "{{name}}" in m.message]
-        assert len(placeholder_warnings) == 1
-        assert placeholder_warnings[0].level == "warning"
-
-    def test_placeholder_tag_in_inputs_section_no_warning(self):
-        content = """task: implement {{spec}}
-
-inputs
-- {{spec}} (required): feature specification
-
-output
-- results
-"""
-        messages = lint_invocation(content, "test.md")
-        placeholder_warnings = [m for m in messages if "{{spec}}" in m.message]
-        assert placeholder_warnings == []
-
-    def test_fenced_example_does_not_end_inputs_section(self):
-        content = """task: do something with {{target}}
-
-## inputs
-
-```sh
+    @pytest.mark.parametrize(
+        ("body", "expected"),
+        [
+            pytest.param(
+                """```sh
 # run it like this
 familiar invoke thing
 ```
@@ -280,17 +245,12 @@ familiar invoke thing
 ## output
 
 - results
-"""
-        messages = lint_invocation(content, "test.md")
-        placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
-        assert placeholder_warnings == []
-
-    def test_tilde_fenced_example_does_not_end_inputs_section(self):
-        content = """task: do something with {{target}}
-
-## inputs
-
-~~~
+""",
+                [],
+                id="fenced-example-does-not-end-inputs-section",
+            ),
+            pytest.param(
+                """~~~
 # run it like this
 ~~~
 
@@ -299,17 +259,12 @@ familiar invoke thing
 ## output
 
 - results
-"""
-        messages = lint_invocation(content, "test.md")
-        placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
-        assert placeholder_warnings == []
-
-    def test_heading_after_fence_still_ends_inputs_section(self):
-        content = """task: do something with {{target}}
-
-## inputs
-
-```sh
+""",
+                [],
+                id="tilde-fenced-example-does-not-end-inputs-section",
+            ),
+            pytest.param(
+                """```sh
 # run it like this
 ```
 
@@ -322,52 +277,35 @@ familiar invoke thing
 ## output
 
 - results
-"""
-        messages = lint_invocation(content, "test.md")
-        placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
-        assert len(placeholder_warnings) == 1
-        assert placeholder_warnings[0].level == "warning"
-
-    def test_unclosed_fence_runs_to_end_of_file(self):
-        content = """task: do something with {{target}}
-
-## inputs
-
-```sh
+""",
+                [TARGET_UNDOCUMENTED],
+                id="heading-after-fence-still-ends-inputs-section",
+            ),
+            pytest.param(
+                """```sh
 # run it like this
 
 ## output
 
 - {{target}}: the file to operate on
-"""
-        messages = lint_invocation(content, "test.md")
-        placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
-        assert placeholder_warnings == []
-
-    def test_inline_code_line_does_not_open_a_fence(self):
-        content = """task: do something with {{target}}
-
-## inputs
-
-```familiar lint``` validates these files before you commit.
+""",
+                [OUTPUT_MISSING],
+                id="unclosed-fence-runs-to-end-of-file",
+            ),
+            pytest.param(
+                """```familiar lint``` validates these files before you commit.
 
 - ctx: the surrounding context
 
 ## output
 
 - results mentioning {{target}}
-"""
-        messages = lint_invocation(content, "test.md")
-        placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
-        assert len(placeholder_warnings) == 1
-        assert placeholder_warnings[0].level == "warning"
-
-    def test_backtick_fence_does_not_close_a_tilde_fence(self):
-        content = """task: do something with {{target}}
-
-## inputs
-
-~~~
+""",
+                [TARGET_UNDOCUMENTED],
+                id="inline-code-line-does-not-open-a-fence",
+            ),
+            pytest.param(
+                """~~~
 ```
 # run it like this
 ~~~
@@ -377,17 +315,12 @@ familiar invoke thing
 ## output
 
 - results
-"""
-        messages = lint_invocation(content, "test.md")
-        placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
-        assert placeholder_warnings == []
-
-    def test_shorter_fence_does_not_close_a_longer_fence(self):
-        content = """task: do something with {{target}}
-
-## inputs
-
-````
+""",
+                [],
+                id="backtick-fence-does-not-close-a-tilde-fence",
+            ),
+            pytest.param(
+                """````
 ```
 # run it like this
 ````
@@ -397,17 +330,12 @@ familiar invoke thing
 ## output
 
 - results
-"""
-        messages = lint_invocation(content, "test.md")
-        placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
-        assert placeholder_warnings == []
-
-    def test_fence_with_info_string_does_not_close_a_fence(self):
-        content = """task: do something with {{target}}
-
-## inputs
-
-```
+""",
+                [],
+                id="shorter-fence-does-not-close-a-longer-fence",
+            ),
+            pytest.param(
+                """```
 ```python
 # run it like this
 ```
@@ -417,10 +345,15 @@ familiar invoke thing
 ## output
 
 - results
-"""
-        messages = lint_invocation(content, "test.md")
-        placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
-        assert placeholder_warnings == []
+""",
+                [],
+                id="fence-with-info-string-does-not-close-a-fence",
+            ),
+        ],
+    )
+    def test_fences_in_inputs_section(self, body, expected):
+        content = "task: do something with {{target}}\n\n## inputs\n\n" + body
+        assert lint_invocation(content, "test.md") == expected
 
     def test_fenced_inputs_heading_does_not_count_as_the_section(self):
         content = """task: show how to write an invocation
@@ -438,11 +371,7 @@ here is the shape of one:
 ```
 """
         messages = lint_invocation(content, "test.md")
-        section_warnings = [m for m in messages if "section" in m.message]
-        assert len(section_warnings) == 2
-        assert all(m.level == "warning" for m in section_warnings)
-        assert any("'inputs' section" in m.message for m in section_warnings)
-        assert any("'output' or 'deliverables'" in m.message for m in section_warnings)
+        assert messages == [INPUTS_MISSING, OUTPUT_MISSING]
 
     def test_tilde_fenced_output_heading_does_not_count_as_the_section(self):
         content = """task: show how to write an invocation
@@ -458,9 +387,7 @@ here is the shape of one:
 ~~~
 """
         messages = lint_invocation(content, "test.md")
-        output_warnings = [m for m in messages if "output" in m.message.lower()]
-        assert len(output_warnings) == 1
-        assert output_warnings[0].level == "warning"
+        assert messages == [OUTPUT_MISSING]
 
     def test_fenced_inputs_heading_does_not_anchor_placeholder_search(self):
         content = """task: do something with {{target}}
@@ -698,10 +625,9 @@ output
 - results
 """
         messages = lint_invocation(content, "test.md")
-        assert [m for m in messages if "'$10'" in m.message] == []
-        first_warnings = [m for m in messages if "'$1'" in m.message]
-        assert len(first_warnings) == 1
-        assert first_warnings[0].level == "warning"
+        assert [m.message for m in messages] == [
+            "placeholder '$1' may not be documented in inputs"
+        ]
 
     def test_positional_placeholder_documented_with_trailing_punctuation(self):
         for doc in [
@@ -740,59 +666,79 @@ class TestContainerAwareFences:
         messages = lint_invocation(content, "test.md")
         assert [m for m in messages if "'inputs' section" in m.message] == []
 
-    def test_fence_in_a_list_item(self):
-        text = "- item\n\n  ```\n  ## inputs\n  ```\n\n## real\n"
-        assert self._unfenced(text) == ["- item", "", "", "## real", ""]
-
-    def test_fence_in_a_block_quote(self):
-        text = "> quoted\n>\n> ```\n> ## inputs\n> ```\n\n## real\n"
-        assert self._unfenced(text) == ["> quoted", ">", "", "## real", ""]
-
-    def test_fence_in_a_list_item_inside_a_block_quote(self):
-        text = "> - item\n>\n>   ```\n>   ## inputs\n>   ```\n>\n## real\n"
-        assert self._unfenced(text) == ["> - item", ">", ">", "## real", ""]
-
-    def test_unclosed_fence_still_runs_to_the_end_of_the_file(self):
-        text = "intro\n\n```\n## inputs\n\n## output\n"
-        assert self._unfenced(text) == ["intro", ""]
-
-    def test_fence_ends_when_its_container_ends(self):
-        text = "- item\n\n  ```\n  code\n## real\n"
-        assert self._unfenced(text) == ["- item", "", "## real", ""]
-
-    def test_blank_line_does_not_end_a_fence_in_a_list_item(self):
-        text = "- item\n\n  ```\n  code\n\n  ## inputs\n  ```\n\n## real\n"
-        assert self._unfenced(text) == ["- item", "", "", "## real", ""]
-
-    def test_blank_line_ends_a_fence_in_a_block_quote(self):
-        text = "> ```\n> code\n\n## real\n"
-        assert self._unfenced(text) == ["", "## real", ""]
-
-    def test_fence_marker_past_the_item_content_column_is_not_a_fence(self):
-        text = "- item\n\n      ```\n\n## real\n"
-        assert self._unfenced(text) == ["- item", "", "      ```", "", "## real", ""]
-
-    def test_top_level_closer_indented_four_spaces_does_not_close(self):
-        text = "   ```\n   code\n    ```\n## swallowed\n"
-        assert self._unfenced(text) == []
-
-    def test_tab_indented_fence_under_a_bullet(self):
-        text = "-\ta\n\n\t```\n\t## inputs\n\t```\n\n## real\n"
-        assert self._unfenced(text) == ["-\ta", "", "", "## real", ""]
-
-    def test_ordered_marker_mid_paragraph_opens_no_container(self):
-        text = "prose\n2) not a list\n      ```\n## real\n"
-        assert self._unfenced(text) == [
-            "prose",
-            "2) not a list",
-            "      ```",
-            "## real",
-            "",
-        ]
-
-    def test_outdented_closer_ends_the_item_and_opens_a_new_fence(self):
-        text = "- item\n\n  ```\n  code\n```\n## swallowed\n"
-        assert self._unfenced(text) == ["- item", ""]
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            pytest.param(
+                "- item\n\n  ```\n  ## inputs\n  ```\n\n## real\n",
+                ["- item", "", "", "## real", ""],
+                id="fence-in-a-list-item",
+            ),
+            pytest.param(
+                "> quoted\n>\n> ```\n> ## inputs\n> ```\n\n## real\n",
+                ["> quoted", ">", "", "## real", ""],
+                id="fence-in-a-block-quote",
+            ),
+            pytest.param(
+                "> - item\n>\n>   ```\n>   ## inputs\n>   ```\n>\n## real\n",
+                ["> - item", ">", ">", "## real", ""],
+                id="fence-in-a-list-item-inside-a-block-quote",
+            ),
+            pytest.param(
+                "intro\n\n```\n## inputs\n\n## output\n",
+                ["intro", ""],
+                id="unclosed-fence-still-runs-to-the-end-of-the-file",
+            ),
+            pytest.param(
+                "- item\n\n  ```\n  code\n## real\n",
+                ["- item", "", "## real", ""],
+                id="fence-ends-when-its-container-ends",
+            ),
+            pytest.param(
+                "- item\n\n  ```\n  code\n\n  ## inputs\n  ```\n\n## real\n",
+                ["- item", "", "", "## real", ""],
+                id="blank-line-does-not-end-a-fence-in-a-list-item",
+            ),
+            pytest.param(
+                "> ```\n> code\n\n## real\n",
+                ["", "## real", ""],
+                id="blank-line-ends-a-fence-in-a-block-quote",
+            ),
+            pytest.param(
+                "- item\n\n      ```\n\n## real\n",
+                ["- item", "", "      ```", "", "## real", ""],
+                id="fence-marker-past-the-item-content-column-is-not-a-fence",
+            ),
+            pytest.param(
+                "   ```\n   code\n    ```\n## swallowed\n",
+                [],
+                id="top-level-closer-indented-four-spaces-does-not-close",
+            ),
+            pytest.param(
+                "-\ta\n\n\t```\n\t## inputs\n\t```\n\n## real\n",
+                ["-\ta", "", "", "## real", ""],
+                id="tab-indented-fence-under-a-bullet",
+            ),
+            pytest.param(
+                "prose\n2) not a list\n      ```\n## real\n",
+                [
+                    "prose",
+                    "2) not a list",
+                    "      ```",
+                    "## real",
+                    "",
+                ],
+                id="ordered-marker-mid-paragraph-opens-no-container",
+            ),
+            pytest.param(
+                "- item\n\n  ```\n  code\n```\n## swallowed\n",
+                ["- item", ""],
+                id="outdented-closer-ends-the-item-and-opens-a-new-fence",
+            ),
+        ],
+    )
+    def test_unfenced_lines(self, text, expected):
+        assert self._unfenced(text) == expected
 
 
 class TestHtmlBlocks:
@@ -822,221 +768,236 @@ class TestHtmlBlocks:
 """
         assert lint_invocation(content, "test.md") == []
 
-    def test_bullet_fence_under_an_open_tag_is_not_a_fence(self):
-        text = "<div>\n- ```\n## inputs\n```\n"
-        assert self._unfenced(text) == ["<div>", "- ```", "## inputs", "```", ""]
-
-    def test_blank_line_between_the_tag_and_the_fence_leaves_a_fence(self):
-        text = "<div>\n\n```\n## inputs\n```\n\n## real\n"
-        assert self._unfenced(text) == ["<div>", "", "", "## real", ""]
-
-    def test_open_tag_interrupts_a_paragraph(self):
-        text = "text\n<div>\n```\n## inputs\n```\n## real\n"
-        assert self._unfenced(text) == [
-            "text",
-            "<div>",
-            "```",
-            "## inputs",
-            "```",
-            "## real",
-            "",
-        ]
-
-    def test_html_block_ends_with_its_container(self):
-        text = "- <div>\n  ```\n## real\n```\n"
-        assert self._unfenced(text) == ["- <div>", "  ```", "## real"]
-
-    def test_html_block_in_a_list_item(self):
-        text = "- <details>\n  ```\n  ## inputs\n\n## real\n"
-        assert self._unfenced(text) == [
-            "- <details>",
-            "  ```",
-            "  ## inputs",
-            "",
-            "## real",
-            "",
-        ]
-
-    def test_html_block_in_a_block_quote(self):
-        text = "> <div>\n> ```\n> ## inputs\n\n## real\n"
-        assert self._unfenced(text) == [
-            "> <div>",
-            "> ```",
-            "> ## inputs",
-            "",
-            "## real",
-            "",
-        ]
-
-    def test_script_runs_to_its_closing_tag(self):
-        text = "<script>\n```\n## inputs\n</script>\n```\n## real\n```\n## after\n"
-        assert self._unfenced(text) == [
-            "<script>",
-            "```",
-            "## inputs",
-            "</script>",
-            "## after",
-            "",
-        ]
-
-    def test_uppercase_script_runs_to_its_closing_tag(self):
-        text = "<PRE>\n```\n## inputs\n</PRE>\n```\n## real\n```\n## after\n"
-        assert self._unfenced(text) == [
-            "<PRE>",
-            "```",
-            "## inputs",
-            "</PRE>",
-            "## after",
-            "",
-        ]
-
-    def test_script_closed_on_its_own_line_leaves_a_fence(self):
-        text = "<script>x</script>\n```\n## inputs\n```\n## real\n"
-        assert self._unfenced(text) == ["<script>x</script>", "## real", ""]
-
-    def test_comment_runs_to_its_terminator(self):
-        text = "<!--\n```\n-->\n```\n## real\n```\n## after\n"
-        assert self._unfenced(text) == ["<!--", "```", "-->", "## after", ""]
-
-    def test_comment_closed_on_its_own_line_leaves_a_fence(self):
-        text = "<!-- c -->\n```\n## inputs\n```\n## real\n"
-        assert self._unfenced(text) == ["<!-- c -->", "## real", ""]
-
-    def test_processing_instruction_runs_to_its_terminator(self):
-        text = "<?php\n```\n?>\n```\n## real\n```\n## after\n"
-        assert self._unfenced(text) == ["<?php", "```", "?>", "## after", ""]
-
-    def test_declaration_runs_to_its_terminator(self):
-        text = "<!DOCTYPE\n```\n## inputs\nfoo>\n```\n## real\n```\n## after\n"
-        assert self._unfenced(text) == [
-            "<!DOCTYPE",
-            "```",
-            "## inputs",
-            "foo>",
-            "## after",
-            "",
-        ]
-
-    def test_declaration_closed_on_its_own_line_leaves_a_fence(self):
-        text = "<!DOCTYPE html>\n```\n## inputs\n```\n## real\n"
-        assert self._unfenced(text) == ["<!DOCTYPE html>", "## real", ""]
-
-    def test_cdata_runs_to_its_terminator(self):
-        text = "<![CDATA[\n```\n]]>\n```\n## real\n```\n## after\n"
-        assert self._unfenced(text) == ["<![CDATA[", "```", "]]>", "## after", ""]
-
-    def test_empty_quote_line_ends_a_block_in_a_quote(self):
-        text = "> <details>\n>\n> ```\n> ## inputs\n> ```\n\n## real\n"
-        assert self._unfenced(text) == ["> <details>", ">", "", "## real", ""]
-
-    def test_blank_line_does_not_end_a_terminated_block(self):
-        text = "<pre>\n\n```\n## inputs\n```\n</pre>\n## real\n"
-        assert self._unfenced(text) == [
-            "<pre>",
-            "",
-            "```",
-            "## inputs",
-            "```",
-            "</pre>",
-            "## real",
-            "",
-        ]
-
-    def test_blank_line_ends_a_terminated_block_in_a_list_item(self):
-        text = "- <pre>\n\n  ```\n  ## inputs\n  ```\n\n## real\n"
-        assert self._unfenced(text) == ["- <pre>", "", "", "## real", ""]
-
-    def test_uppercase_tag_interrupts_a_paragraph(self):
-        text = "text\n<DIV>\n```\n## inputs\n```\n## real\n"
-        assert self._unfenced(text) == [
-            "text",
-            "<DIV>",
-            "```",
-            "## inputs",
-            "```",
-            "## real",
-            "",
-        ]
-
-    def test_indented_tag_interrupts_a_paragraph(self):
-        text = "text\n   <div>\n```\n## inputs\n```\n## real\n"
-        assert self._unfenced(text) == [
-            "text",
-            "   <div>",
-            "```",
-            "## inputs",
-            "```",
-            "## real",
-            "",
-        ]
-
-    def test_closing_tag_interrupts_a_paragraph(self):
-        text = "text\n</div>\n```\n## inputs\n```\n## real\n"
-        assert self._unfenced(text) == [
-            "text",
-            "</div>",
-            "```",
-            "## inputs",
-            "```",
-            "## real",
-            "",
-        ]
-
-    def test_tag_extending_a_block_name_does_not_interrupt_a_paragraph(self):
-        text = "text\n<divider>\n```\n## inputs\n```\n## real\n"
-        assert self._unfenced(text) == ["text", "<divider>", "## real", ""]
-
-    def test_tag_with_trailing_text_does_not_open_a_block(self):
-        text = "<span>i</span> trailing\n```\n## inputs\n```\n\n## real\n"
-        assert self._unfenced(text) == ["<span>i</span> trailing", "", "## real", ""]
-
-    def test_tag_alone_after_a_closed_block_opens_a_block(self):
-        text = "<pre>x</pre>\n<span>\n```\n## inputs\n```\n\n## real\n"
-        assert self._unfenced(text) == [
-            "<pre>x</pre>",
-            "<span>",
-            "```",
-            "## inputs",
-            "```",
-            "",
-            "## real",
-            "",
-        ]
-
-    def test_unknown_tag_alone_on_a_line_opens_a_block(self):
-        text = "<x-tag>\n```\n## inputs\n```\n\n## real\n"
-        assert self._unfenced(text) == [
-            "<x-tag>",
-            "```",
-            "## inputs",
-            "```",
-            "",
-            "## real",
-            "",
-        ]
-
-    def test_unknown_tag_does_not_interrupt_a_paragraph(self):
-        text = "text\n<x-tag>\n```\n## inputs\n```\n## real\n"
-        assert self._unfenced(text) == ["text", "<x-tag>", "## real", ""]
-
-
-class TestLintAll:
-    """tests for linting all conjurings and invocations."""
-
-    def test_lint_all_builtins(self, tmp_path):
-        messages = lint_all(tmp_path)
-        errors = [m for m in messages if m.level == "error"]
-        assert errors == [], f"Unexpected errors: {errors}"
-
-    def test_lint_all_with_local_override(self, tmp_path):
-        templates = tmp_path / ".familiar" / "conjurings"
-        templates.mkdir(parents=True)
-        (templates / "bad.md").write_text("no heading")
-
-        messages = lint_all(tmp_path)
-        local_warnings = [m for m in messages if "bad.md" in m.file]
-        assert len(local_warnings) == 1
-        assert "heading" in local_warnings[0].message
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            pytest.param(
+                "<div>\n- ```\n## inputs\n```\n",
+                ["<div>", "- ```", "## inputs", "```", ""],
+                id="bullet-fence-under-an-open-tag-is-not-a-fence",
+            ),
+            pytest.param(
+                "<div>\n\n```\n## inputs\n```\n\n## real\n",
+                ["<div>", "", "", "## real", ""],
+                id="blank-line-between-the-tag-and-the-fence-leaves-a-fence",
+            ),
+            pytest.param(
+                "text\n<div>\n```\n## inputs\n```\n## real\n",
+                [
+                    "text",
+                    "<div>",
+                    "```",
+                    "## inputs",
+                    "```",
+                    "## real",
+                    "",
+                ],
+                id="open-tag-interrupts-a-paragraph",
+            ),
+            pytest.param(
+                "- <div>\n  ```\n## real\n```\n",
+                ["- <div>", "  ```", "## real"],
+                id="html-block-ends-with-its-container",
+            ),
+            pytest.param(
+                "- <details>\n  ```\n  ## inputs\n\n## real\n",
+                [
+                    "- <details>",
+                    "  ```",
+                    "  ## inputs",
+                    "",
+                    "## real",
+                    "",
+                ],
+                id="html-block-in-a-list-item",
+            ),
+            pytest.param(
+                "> <div>\n> ```\n> ## inputs\n\n## real\n",
+                [
+                    "> <div>",
+                    "> ```",
+                    "> ## inputs",
+                    "",
+                    "## real",
+                    "",
+                ],
+                id="html-block-in-a-block-quote",
+            ),
+            pytest.param(
+                "<script>\n```\n## inputs\n</script>\n```\n## real\n```\n## after\n",
+                [
+                    "<script>",
+                    "```",
+                    "## inputs",
+                    "</script>",
+                    "## after",
+                    "",
+                ],
+                id="script-runs-to-its-closing-tag",
+            ),
+            pytest.param(
+                "<PRE>\n```\n## inputs\n</PRE>\n```\n## real\n```\n## after\n",
+                [
+                    "<PRE>",
+                    "```",
+                    "## inputs",
+                    "</PRE>",
+                    "## after",
+                    "",
+                ],
+                id="uppercase-script-runs-to-its-closing-tag",
+            ),
+            pytest.param(
+                "<script>x</script>\n```\n## inputs\n```\n## real\n",
+                ["<script>x</script>", "## real", ""],
+                id="script-closed-on-its-own-line-leaves-a-fence",
+            ),
+            pytest.param(
+                "<!--\n```\n-->\n```\n## real\n```\n## after\n",
+                ["<!--", "```", "-->", "## after", ""],
+                id="comment-runs-to-its-terminator",
+            ),
+            pytest.param(
+                "<!-- c -->\n```\n## inputs\n```\n## real\n",
+                ["<!-- c -->", "## real", ""],
+                id="comment-closed-on-its-own-line-leaves-a-fence",
+            ),
+            pytest.param(
+                "<?php\n```\n?>\n```\n## real\n```\n## after\n",
+                ["<?php", "```", "?>", "## after", ""],
+                id="processing-instruction-runs-to-its-terminator",
+            ),
+            pytest.param(
+                "<!DOCTYPE\n```\n## inputs\nfoo>\n```\n## real\n```\n## after\n",
+                [
+                    "<!DOCTYPE",
+                    "```",
+                    "## inputs",
+                    "foo>",
+                    "## after",
+                    "",
+                ],
+                id="declaration-runs-to-its-terminator",
+            ),
+            pytest.param(
+                "<!DOCTYPE html>\n```\n## inputs\n```\n## real\n",
+                ["<!DOCTYPE html>", "## real", ""],
+                id="declaration-closed-on-its-own-line-leaves-a-fence",
+            ),
+            pytest.param(
+                "<![CDATA[\n```\n]]>\n```\n## real\n```\n## after\n",
+                ["<![CDATA[", "```", "]]>", "## after", ""],
+                id="cdata-runs-to-its-terminator",
+            ),
+            pytest.param(
+                "> <details>\n>\n> ```\n> ## inputs\n> ```\n\n## real\n",
+                ["> <details>", ">", "", "## real", ""],
+                id="empty-quote-line-ends-a-block-in-a-quote",
+            ),
+            pytest.param(
+                "<pre>\n\n```\n## inputs\n```\n</pre>\n## real\n",
+                [
+                    "<pre>",
+                    "",
+                    "```",
+                    "## inputs",
+                    "```",
+                    "</pre>",
+                    "## real",
+                    "",
+                ],
+                id="blank-line-does-not-end-a-terminated-block",
+            ),
+            pytest.param(
+                "- <pre>\n\n  ```\n  ## inputs\n  ```\n\n## real\n",
+                ["- <pre>", "", "", "## real", ""],
+                id="blank-line-ends-a-terminated-block-in-a-list-item",
+            ),
+            pytest.param(
+                "text\n<DIV>\n```\n## inputs\n```\n## real\n",
+                [
+                    "text",
+                    "<DIV>",
+                    "```",
+                    "## inputs",
+                    "```",
+                    "## real",
+                    "",
+                ],
+                id="uppercase-tag-interrupts-a-paragraph",
+            ),
+            pytest.param(
+                "text\n   <div>\n```\n## inputs\n```\n## real\n",
+                [
+                    "text",
+                    "   <div>",
+                    "```",
+                    "## inputs",
+                    "```",
+                    "## real",
+                    "",
+                ],
+                id="indented-tag-interrupts-a-paragraph",
+            ),
+            pytest.param(
+                "text\n</div>\n```\n## inputs\n```\n## real\n",
+                [
+                    "text",
+                    "</div>",
+                    "```",
+                    "## inputs",
+                    "```",
+                    "## real",
+                    "",
+                ],
+                id="closing-tag-interrupts-a-paragraph",
+            ),
+            pytest.param(
+                "text\n<divider>\n```\n## inputs\n```\n## real\n",
+                ["text", "<divider>", "## real", ""],
+                id="tag-extending-a-block-name-does-not-interrupt-a-paragraph",
+            ),
+            pytest.param(
+                "<span>i</span> trailing\n```\n## inputs\n```\n\n## real\n",
+                ["<span>i</span> trailing", "", "## real", ""],
+                id="tag-with-trailing-text-does-not-open-a-block",
+            ),
+            pytest.param(
+                "<pre>x</pre>\n<span>\n```\n## inputs\n```\n\n## real\n",
+                [
+                    "<pre>x</pre>",
+                    "<span>",
+                    "```",
+                    "## inputs",
+                    "```",
+                    "",
+                    "## real",
+                    "",
+                ],
+                id="tag-alone-after-a-closed-block-opens-a-block",
+            ),
+            pytest.param(
+                "<x-tag>\n```\n## inputs\n```\n\n## real\n",
+                [
+                    "<x-tag>",
+                    "```",
+                    "## inputs",
+                    "```",
+                    "",
+                    "## real",
+                    "",
+                ],
+                id="unknown-tag-alone-on-a-line-opens-a-block",
+            ),
+            pytest.param(
+                "text\n<x-tag>\n```\n## inputs\n```\n## real\n",
+                ["text", "<x-tag>", "## real", ""],
+                id="unknown-tag-does-not-interrupt-a-paragraph",
+            ),
+        ],
+    )
+    def test_unfenced_lines(self, text, expected):
+        assert self._unfenced(text) == expected
 
 
 class TestLintMessage:
@@ -1059,14 +1020,6 @@ class TestLintMessage:
 class TestLinterPlugins:
     """tests for linter plugin loading."""
 
-    def test_load_linters_returns_list(self):
-        linters = load_linters("conjurings")
-        assert isinstance(linters, list)
-
-    def test_load_linters_invocations(self):
-        linters = load_linters("invocations")
-        assert isinstance(linters, list)
-
     def test_invalid_linter_warns(self):
         """Plugin that isn't callable should warn."""
         mock_ep = MagicMock()
@@ -1078,24 +1031,13 @@ class TestLinterPlugins:
                 linters = load_linters("conjurings")
             assert len(linters) == 0
 
-    def test_load_error_warns(self):
-        """Plugin that fails to load should warn."""
-        mock_ep = MagicMock()
-        mock_ep.name = "broken"
-        mock_ep.load.side_effect = ImportError("module not found")
-
-        with patch("familiar._plugins.entry_points", return_value=[mock_ep]):
-            with pytest.warns(UserWarning, match="failed to load"):
-                linters = load_linters("conjurings")
-            assert len(linters) == 0
-
     def test_plugin_linter_called(self, tmp_path):
-        """Plugin linter should be called for each file."""
+        """Plugin linter should be called for each file and its messages kept."""
         calls = []
 
         def mock_linter(content: str, name: str) -> list[LintMessage]:
             calls.append((content, name))
-            return []
+            return [LintMessage("warning", name, 1, "plugin says")]
 
         mock_ep = MagicMock()
         mock_ep.name = "test"
@@ -1113,10 +1055,11 @@ class TestLinterPlugins:
                 return []
 
             mock_entry_points.side_effect = ep_side_effect
-            lint_all(tmp_path)
+            messages = lint_all(tmp_path)
 
-        local_calls = [c for c in calls if "mytemplate" in c[1]]
-        assert len(local_calls) == 1
+        name = ".familiar/conjurings/mytemplate.md"
+        assert ("# test", name) in calls
+        assert LintMessage("warning", name, 1, "plugin says") in messages
 
     def test_plugin_linter_error_handled(self, tmp_path):
         """Plugin linter that raises should produce error message."""
@@ -1142,38 +1085,19 @@ class TestLinterPlugins:
             mock_entry_points.side_effect = ep_side_effect
             messages = lint_all(tmp_path)
 
-        error_messages = [m for m in messages if "plugin linter failed" in m.message]
-        assert len(error_messages) >= 1
+        assert (
+            LintMessage(
+                "error",
+                ".familiar/conjurings/test.md",
+                None,
+                "plugin linter failed: linter crashed",
+            )
+            in messages
+        )
 
 
 class TestLintCollectionErrorHandling:
     """tests for error handling in lint_collection."""
-
-    def test_load_error_produces_lint_error(self, tmp_path):
-        """A NotFoundError from load_text should produce a lint error, not crash."""
-        templates = tmp_path / ".familiar" / "conjurings"
-        templates.mkdir(parents=True)
-        (templates / "broken.md").write_text("# heading")
-
-        from familiar import lint as _lint_mod
-
-        original = _lint_mod.load_text
-
-        def patched(repo_root, kind, name):
-            if name == "broken":
-                raise NotFoundError("simulated read failure")
-            return original(repo_root, kind, name)
-
-        with patch.object(_lint_mod, "load_text", side_effect=patched):
-            messages = lint_collection(tmp_path, "conjurings", lint_template, [])
-
-        load_errors = [
-            m
-            for m in messages
-            if "broken.md" in m.file and "failed to load" in m.message
-        ]
-        assert len(load_errors) == 1
-        assert load_errors[0].level == "error"
 
     def test_unexpected_linter_error_propagates(self, tmp_path):
         """Errors not wrapped in NotFoundError should propagate, not be swallowed."""
@@ -1194,51 +1118,32 @@ class TestLintUnreadableLocalFiles:
     def _errors_for(self, messages, file):
         return [m for m in messages if m.level == "error" and m.file == file]
 
-    def test_invalid_utf8_invocation_reported(self, tmp_path):
-        invocations = tmp_path / ".familiar" / "invocations"
-        invocations.mkdir(parents=True)
-        (invocations / "bad.md").write_bytes(b"task: caf\xe9\n")
+    @pytest.mark.parametrize(
+        ("kind", "make", "name", "detail"),
+        [
+            ("invocations", _invalid_utf8, "bad", "not valid UTF-8"),
+            ("conjurings", _invalid_utf8, "bad", "not valid UTF-8"),
+            ("invocations", _locked, "locked", "permission denied"),
+            ("conjurings", _dangling_symlink, "dangling", ""),
+        ],
+        ids=[
+            "invalid-utf8-invocation",
+            "invalid-utf8-conjuring",
+            "permission-denied-invocation",
+            "dangling-symlink-conjuring",
+        ],
+    )
+    def test_unreadable_local_file_reported(self, tmp_path, kind, make, name, detail):
+        local = tmp_path / ".familiar" / kind
+        local.mkdir(parents=True)
+        make(local / f"{name}.md")
 
-        errors = self._errors_for(lint_all(tmp_path), ".familiar/invocations/bad.md")
+        errors = self._errors_for(lint_all(tmp_path), f".familiar/{kind}/{name}.md")
         assert len(errors) == 1
-        assert "cannot read invocation 'bad'" in errors[0].message
-        assert "not valid UTF-8" in errors[0].message
-
-    def test_invalid_utf8_conjuring_reported(self, tmp_path):
-        conjurings = tmp_path / ".familiar" / "conjurings"
-        conjurings.mkdir(parents=True)
-        (conjurings / "bad.md").write_bytes(b"# caf\xe9\n")
-
-        errors = self._errors_for(lint_all(tmp_path), ".familiar/conjurings/bad.md")
-        assert len(errors) == 1
-        assert "cannot read conjuring 'bad'" in errors[0].message
-        assert "not valid UTF-8" in errors[0].message
-
-    def test_permission_denied_invocation_reported(self, tmp_path):
-        invocations = tmp_path / ".familiar" / "invocations"
-        invocations.mkdir(parents=True)
-        locked = invocations / "locked.md"
-        locked.write_text("task: do it\n")
-        locked.chmod(0o000)
-        try:
-            messages = lint_all(tmp_path)
-        finally:
-            locked.chmod(0o644)
-
-        errors = self._errors_for(messages, ".familiar/invocations/locked.md")
-        assert len(errors) == 1
-        assert "permission denied" in errors[0].message
-
-    def test_dangling_symlink_conjuring_reported(self, tmp_path):
-        conjurings = tmp_path / ".familiar" / "conjurings"
-        conjurings.mkdir(parents=True)
-        (conjurings / "dangling.md").symlink_to(tmp_path / "gone.md")
-
-        errors = self._errors_for(
-            lint_all(tmp_path), ".familiar/conjurings/dangling.md"
+        assert re.match(
+            f"failed to load: cannot read {kind[:-1]} '{name}': .*{detail}",
+            errors[0].message,
         )
-        assert len(errors) == 1
-        assert "cannot read conjuring 'dangling'" in errors[0].message
 
     def test_invalid_utf8_snippet_reported(self, tmp_path):
         snippet_dir = tmp_path / ".familiar" / "snippets" / "x"
@@ -1384,23 +1289,6 @@ class TestLintSnippetReferences:
         messages = lint_snippet_references(tmp_path, content, "test.md")
         assert messages == []
 
-    def test_lint_all_catches_missing_snippet(self, tmp_path):
-        """lint_all should report errors for invocations with missing snippet refs."""
-        invocations = tmp_path / ".familiar" / "invocations"
-        invocations.mkdir(parents=True)
-        (invocations / "bad.md").write_text(
-            "task: do something\n\ninputs\n- $ARGUMENTS\n\n"
-            "{{> snippet:nonexistent/file.txt}}\n\noutput\n- results\n"
-        )
-
-        messages = lint_all(tmp_path)
-        snippet_errors = [
-            m
-            for m in messages
-            if "snippet not found" in m.message and "bad.md" in m.file
-        ]
-        assert len(snippet_errors) == 1
-
     def test_transitive_missing_reference(self, tmp_path):
         """a valid include whose child references a missing snippet is caught."""
         snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
@@ -1449,9 +1337,10 @@ class TestLintSnippetReferences:
         assert len(messages) == 1
         assert messages[0].level == "error"
         assert messages[0].line == 2
-        assert "snippet include cycle" in messages[0].message
-        assert "test/a.txt" in messages[0].message
-        assert "test/b.txt" in messages[0].message
+        assert (
+            messages[0].message
+            == "snippet include cycle: test/a.txt -> test/b.txt -> test/a.txt"
+        )
 
     def test_depth_exceeded_detected(self, tmp_path):
         snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
@@ -1496,10 +1385,6 @@ class TestLintSnippetReferences:
 
 class TestLintSnippetCollection:
     """tests for linting the snippet collection itself."""
-
-    def test_builtins_clean(self, tmp_path):
-        messages = lint_snippet_collection(tmp_path)
-        assert messages == []
 
     def test_broken_include_in_local_snippet(self, tmp_path):
         snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
@@ -1552,64 +1437,33 @@ class TestLintSnippetCollection:
         ]
         assert len(errs) == 1
 
-    def test_load_failure_reports_error(self, tmp_path):
-        """a snippet that lists but then fails to load produces a lint error."""
-        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
-        snippet_dir.mkdir(parents=True)
-        (snippet_dir / "ok.txt").write_text("fine")
-
-        from familiar import lint as _lint_mod
-
-        original = _lint_mod.load_snippet
-
-        def patched(repo_root, path):
-            if path == "test/ok.txt":
-                raise NotFoundError("simulated read failure")
-            return original(repo_root, path)
-
-        with patch.object(_lint_mod, "load_snippet", side_effect=patched):
-            messages = lint_snippet_collection(tmp_path)
-
-        load_errors = [
-            m
-            for m in messages
-            if "test/ok.txt" in m.file and "failed to load" in m.message
-        ]
-        assert len(load_errors) == 1
-        assert load_errors[0].level == "error"
-
 
 class TestLintSnippetPlaceholders:
     """tests for placeholder checks on include-expanded invocation text."""
 
-    def test_snippet_positional_undocumented_warns(self, tmp_path):
+    @pytest.mark.parametrize(
+        ("body", "placeholder"),
+        [("run the tool with $1", "$1"), ("mode is {{key}}", "{{key}}")],
+        ids=["positional", "named"],
+    )
+    def test_snippet_placeholder_undocumented_warns(self, tmp_path, body, placeholder):
         snippets = tmp_path / ".familiar" / "snippets" / "test"
         snippets.mkdir(parents=True)
-        (snippets / "body.txt").write_text("run the tool with $1")
+        (snippets / "body.txt").write_text(body)
 
         content = (
             "task: demo\n\ninputs\n- $ARGUMENTS: stuff\n\n"
             "{{> snippet:test/body.txt}}\n\noutput\n- results\n"
         )
         messages = lint_snippet_placeholders(tmp_path, content, "demo.md")
-        warns = [m for m in messages if "$1" in m.message]
-        assert len(warns) == 1
-        assert warns[0].level == "warning"
-        assert warns[0].line is None
-
-    def test_snippet_named_undocumented_warns(self, tmp_path):
-        snippets = tmp_path / ".familiar" / "snippets" / "test"
-        snippets.mkdir(parents=True)
-        (snippets / "body.txt").write_text("mode is {{key}}")
-
-        content = (
-            "task: demo\n\ninputs\n- $ARGUMENTS: stuff\n\n"
-            "{{> snippet:test/body.txt}}\n\noutput\n- results\n"
-        )
-        messages = lint_snippet_placeholders(tmp_path, content, "demo.md")
-        warns = [m for m in messages if "{{key}}" in m.message]
-        assert len(warns) == 1
-        assert warns[0].level == "warning"
+        assert messages == [
+            LintMessage(
+                "warning",
+                "demo.md",
+                None,
+                f"placeholder '{placeholder}' may not be documented in inputs",
+            )
+        ]
 
     def test_snippet_named_documented_no_warn(self, tmp_path):
         snippets = tmp_path / ".familiar" / "snippets" / "test"
