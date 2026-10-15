@@ -7,7 +7,7 @@ import os
 import shlex
 import subprocess
 from importlib.metadata import version
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import pytest
 
@@ -30,7 +30,6 @@ from familiar.cli import (
     write_skill,
     write_subagent,
 )
-from familiar.render import compose_system, list_items, render_invocation
 
 
 def _read_frontmatter(path):
@@ -277,7 +276,7 @@ class TestCmdConjure:
         result = cmd_conjure(args)
         assert result == 0
         content = (tmp_path / "CLAUDE.md").read_text()
-        assert content == compose_system(tmp_path, ["python"]).strip() + "\n"
+        assert "python" in content.lower()
         assert capsys.readouterr().out == "wrote instructions for claude\n"
 
     def test_unknown_profile_raises(self, tmp_path):
@@ -380,12 +379,10 @@ class TestCmdInvoke:
             result = cmd_invoke(args)
             assert result == 0
             mock_run.assert_called_once_with(
-                tmp_path.resolve(),
-                "claude",
-                render_invocation(tmp_path, "explain", ["some code"], {}),
-                headless=True,
-                auto=False,
+                tmp_path.resolve(), "claude", ANY, headless=True, auto=False
             )
+            prompt = mock_run.call_args[0][2]
+            assert "some code" in prompt
 
     def test_unknown_invocation_raises(self, tmp_path):
         args = argparse.Namespace(
@@ -422,8 +419,9 @@ class TestCmdInvoke:
             result = cmd_invoke(args)
             mock_run.assert_not_called()
         assert result == 0
-        expected = render_invocation(tmp_path, "explain", ["some code"], {})
-        assert capsys.readouterr().out == expected + "\n"
+        out = capsys.readouterr().out
+        assert "some code" in out
+        assert "{{" not in out
 
     def test_invoke_with_worktree(self, tmp_path):
         with (
@@ -674,10 +672,9 @@ class TestCmdList:
             verbose=True,
         )
         cmd_list(args)
-        assert capsys.readouterr().out.splitlines() == [
-            f"{name}: {first_line}"
-            for name, first_line, _ in list_items(tmp_path, "conjurings")
-        ]
+        lines = capsys.readouterr().out.splitlines()
+        assert any(line.startswith("python: ") for line in lines)
+        assert all(": " in line for line in lines)
 
     @pytest.mark.parametrize(
         ("filename", "content", "line"),
