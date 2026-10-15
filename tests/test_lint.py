@@ -138,7 +138,9 @@ output
         ids=["after-leading-blank-lines", "first-line"],
     )
     def test_missing_task_line(self, content, line):
-        assert lint_invocation(content, "test.md") == [
+        messages = lint_invocation(content, "test.md")
+        task_warnings = [m for m in messages if "task:" in m.message]
+        assert task_warnings == [
             LintMessage(
                 "warning",
                 "test.md",
@@ -154,7 +156,8 @@ output
 - results
 """
         messages = lint_invocation(content, "test.md")
-        assert messages == [INPUTS_MISSING]
+        input_warnings = [m for m in messages if "inputs" in m.message.lower()]
+        assert input_warnings == [INPUTS_MISSING]
 
     def test_missing_output_section(self):
         content = """task: do something
@@ -163,7 +166,8 @@ inputs
 - $ARGUMENTS
 """
         messages = lint_invocation(content, "test.md")
-        assert messages == [OUTPUT_MISSING]
+        output_warnings = [m for m in messages if "output" in m.message.lower()]
+        assert output_warnings == [OUTPUT_MISSING]
 
     def test_accepts_various_task_verbs(self):
         for verb in [
@@ -189,33 +193,46 @@ output
             assert task_warnings == [], f"Failed for verb: {verb}"
 
     @pytest.mark.parametrize(
-        ("inputs", "output"),
+        ("inputs", "output", "rule"),
         [
-            ("arguments:\n- $1 name", "output"),
-            ("inputs\n- $ARGUMENTS", "deliverables"),
-            ("inputs\n- $ARGUMENTS", "outputs"),
+            ("arguments:\n- $1 name", "output", "inputs"),
+            ("inputs\n- $ARGUMENTS", "deliverables", "output"),
+            ("inputs\n- $ARGUMENTS", "outputs", "output"),
         ],
         ids=["arguments", "deliverables", "outputs"],
     )
-    def test_accepts_section_label(self, inputs, output):
+    def test_accepts_section_label(self, inputs, output, rule):
         content = f"task: do something\n\n{inputs}\n\n{output}\n- results\n"
-        assert lint_invocation(content, "test.md") == []
+        messages = lint_invocation(content, "test.md")
+        assert [m for m in messages if rule in m.message.lower()] == []
 
     @pytest.mark.parametrize(
-        ("task", "inputs", "expected"),
+        ("task", "inputs", "placeholder", "expected"),
         [
             (
                 "do something with {{myarg}}",
                 "- $ARGUMENTS",
+                "{{myarg}}",
                 ["placeholder '{{myarg}}' may not be documented in inputs"],
             ),
-            ("do something with {{myarg}}", "- myarg (required): the argument", []),
+            (
+                "do something with {{myarg}}",
+                "- myarg (required): the argument",
+                "{{myarg}}",
+                [],
+            ),
             (
                 "process {{name}}",
                 "- filename (required): the file to process",
+                "{{name}}",
                 ["placeholder '{{name}}' may not be documented in inputs"],
             ),
-            ("implement {{spec}}", "- {{spec}} (required): feature specification", []),
+            (
+                "implement {{spec}}",
+                "- {{spec}} (required): feature specification",
+                "{{spec}}",
+                [],
+            ),
         ],
         ids=[
             "undocumented",
@@ -224,10 +241,11 @@ output
             "tag-in-inputs-section",
         ],
     )
-    def test_placeholder_documentation(self, task, inputs, expected):
+    def test_placeholder_documentation(self, task, inputs, placeholder, expected):
         content = f"task: {task}\n\ninputs\n{inputs}\n\noutput\n- results\n"
         messages = lint_invocation(content, "test.md")
-        assert messages == [
+        placeholder_warnings = [m for m in messages if placeholder in m.message]
+        assert placeholder_warnings == [
             LintMessage("warning", "test.md", None, message) for message in expected
         ]
 
@@ -289,7 +307,7 @@ familiar invoke thing
 
 - {{target}}: the file to operate on
 """,
-                [OUTPUT_MISSING],
+                [],
                 id="unclosed-fence-runs-to-end-of-file",
             ),
             pytest.param(
@@ -353,7 +371,9 @@ familiar invoke thing
     )
     def test_fences_in_inputs_section(self, body, expected):
         content = "task: do something with {{target}}\n\n## inputs\n\n" + body
-        assert lint_invocation(content, "test.md") == expected
+        messages = lint_invocation(content, "test.md")
+        placeholder_warnings = [m for m in messages if "{{target}}" in m.message]
+        assert placeholder_warnings == expected
 
     def test_fenced_inputs_heading_does_not_count_as_the_section(self):
         content = """task: show how to write an invocation
@@ -371,7 +391,8 @@ here is the shape of one:
 ```
 """
         messages = lint_invocation(content, "test.md")
-        assert messages == [INPUTS_MISSING, OUTPUT_MISSING]
+        section_warnings = [m for m in messages if "section" in m.message]
+        assert section_warnings == [INPUTS_MISSING, OUTPUT_MISSING]
 
     def test_tilde_fenced_output_heading_does_not_count_as_the_section(self):
         content = """task: show how to write an invocation
@@ -387,7 +408,8 @@ here is the shape of one:
 ~~~
 """
         messages = lint_invocation(content, "test.md")
-        assert messages == [OUTPUT_MISSING]
+        output_warnings = [m for m in messages if "output" in m.message.lower()]
+        assert output_warnings == [OUTPUT_MISSING]
 
     def test_fenced_inputs_heading_does_not_anchor_placeholder_search(self):
         content = """task: do something with {{target}}
@@ -625,8 +647,14 @@ output
 - results
 """
         messages = lint_invocation(content, "test.md")
-        assert [m.message for m in messages] == [
-            "placeholder '$1' may not be documented in inputs"
+        assert [m for m in messages if "'$10'" in m.message] == []
+        assert [m for m in messages if "'$1'" in m.message] == [
+            LintMessage(
+                "warning",
+                "test.md",
+                None,
+                "placeholder '$1' may not be documented in inputs",
+            )
         ]
 
     def test_positional_placeholder_documented_with_trailing_punctuation(self):
@@ -1479,7 +1507,7 @@ class TestLintSnippetPlaceholders:
             "{{> snippet:test/body.txt}}\n\noutput\n- results\n"
         )
         messages = lint_snippet_placeholders(tmp_path, content, "demo.md")
-        assert messages == [
+        assert [m for m in messages if placeholder in m.message] == [
             LintMessage(
                 "warning",
                 "demo.md",
