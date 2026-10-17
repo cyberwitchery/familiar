@@ -6,7 +6,8 @@ import argparse
 import os
 import shlex
 import subprocess
-from unittest.mock import patch
+from importlib.metadata import version
+from unittest.mock import ANY, patch
 
 import pytest
 
@@ -49,9 +50,7 @@ class TestVersion:
         ):
             main()
         captured = capsys.readouterr()
-        assert "familiar" in captured.out
-        # version string should look like a semver
-        assert any(c.isdigit() for c in captured.out)
+        assert captured.out == f"familiar {version('familiar-cli')}\n"
 
 
 class TestCreateWorktree:
@@ -66,6 +65,16 @@ class TestCreateWorktree:
             result = create_worktree(tmp_path)
             assert "familiar-" in str(result)
             assert mock_run.call_count == 2
+            assert mock_run.call_args_list[1].args[0] == [
+                "git",
+                "-C",
+                str(tmp_path),
+                "worktree",
+                "add",
+                "--detach",
+                str(result),
+                "HEAD",
+            ]
 
     def test_create_worktree_not_git_raises(self, tmp_path):
         with (
@@ -106,61 +115,34 @@ class TestFindRepoRoot:
 class TestResolveAgent:
     """tests for _resolve_agent helper."""
 
-    def test_returns_known_agent(self):
-        agent = _resolve_agent("claude")
-        assert agent.name == "claude"
-
-    def test_unknown_agent_raises(self):
-        with pytest.raises(CliError, match="unknown agent"):
+    def test_unknown_agent_raises_with_hint(self):
+        with pytest.raises(CliError, match="unknown agent: nonexistent") as exc_info:
             _resolve_agent("nonexistent")
-
-    def test_unknown_agent_includes_hint(self):
-        with pytest.raises(CliError) as exc_info:
-            _resolve_agent("nonexistent")
-        assert exc_info.value.hint is not None
-        assert "valid agents" in exc_info.value.hint
+        hint = exc_info.value.hint
+        assert hint is not None
+        assert hint.startswith("valid agents: ")
+        assert "claude" in hint
+        assert "codex" in hint
 
 
 class TestWriteFile:
     """tests for _write_file helper."""
-
-    def test_writes_content(self, tmp_path):
-        dest = tmp_path / "out.txt"
-        _write_file(dest, "hello\n")
-        assert dest.read_text() == "hello\n"
 
     def test_creates_parent_dirs(self, tmp_path):
         dest = tmp_path / "a" / "b" / "out.txt"
         _write_file(dest, "nested\n")
         assert dest.read_text() == "nested\n"
 
-    def test_oserror_without_label(self, tmp_path):
-        dest = tmp_path / "out.txt"
-        with (
-            patch("pathlib.Path.write_text", side_effect=PermissionError("denied")),
-            pytest.raises(CliError, match="cannot write .*/out.txt"),
-        ):
-            _write_file(dest, "content")
-
-    def test_oserror_with_label(self, tmp_path):
-        dest = tmp_path / "out.txt"
-        with (
-            patch("pathlib.Path.write_text", side_effect=PermissionError("denied")),
-            pytest.raises(CliError, match="cannot write skill .*/out.txt"),
-        ):
-            _write_file(dest, "content", label="skill")
-
 
 class TestWriteInstruction:
     """tests for writing instruction files."""
 
-    def test_writes_claude_md(self, tmp_path):
-        write_instruction(tmp_path, "claude", "system prompt")
-        assert (tmp_path / "CLAUDE.md").read_text() == "system prompt\n"
-
-    def test_writes_agents_md(self, tmp_path):
-        write_instruction(tmp_path, "codex", "agent prompt")
-        assert (tmp_path / "AGENTS.md").read_text() == "agent prompt\n"
+    @pytest.mark.parametrize(
+        ("agent", "filename"), [("claude", "CLAUDE.md"), ("codex", "AGENTS.md")]
+    )
+    def test_writes_instruction_file(self, tmp_path, agent, filename):
+        write_instruction(tmp_path, agent, "system prompt")
+        assert (tmp_path / filename).read_text() == "system prompt\n"
 
     def test_strips_whitespace(self, tmp_path):
         write_instruction(tmp_path, "claude", "  content  \n\n")
@@ -193,26 +175,33 @@ class TestRemoveWorktree:
 class TestWriteFailures:
     """tests for write error handling."""
 
-    def test_write_instruction_permission_denied(self, tmp_path):
+    @pytest.mark.parametrize(
+        ("write", "message"),
+        [
+            (
+                lambda root: write_instruction(root, "claude", "content"),
+                r"^cannot write /.*/CLAUDE\.md: denied$",
+            ),
+            (
+                lambda root: write_skill(root, "claude", "explain", "my-skill", "p"),
+                r"^cannot write skill /.*/SKILL\.md: denied$",
+            ),
+            (
+                lambda root: write_subagent(
+                    root, "claude", ["python"], "my-subagent", "system"
+                ),
+                r"^cannot write subagent /.*/my-subagent\.md: denied$",
+            ),
+        ],
+        ids=["instruction", "skill", "subagent"],
+    )
+    def test_permission_denied(self, tmp_path, write, message):
         with (
             patch("pathlib.Path.write_text", side_effect=PermissionError("denied")),
-            pytest.raises(CliError, match="cannot write"),
+            pytest.raises(CliError, match=message) as exc_info,
         ):
-            write_instruction(tmp_path, "claude", "content")
-
-    def test_write_skill_permission_denied(self, tmp_path):
-        with (
-            patch("pathlib.Path.write_text", side_effect=PermissionError("denied")),
-            pytest.raises(CliError, match="cannot write skill"),
-        ):
-            write_skill(tmp_path, "claude", "explain", "my-skill", "prompt")
-
-    def test_write_subagent_permission_denied(self, tmp_path):
-        with (
-            patch("pathlib.Path.write_text", side_effect=PermissionError("denied")),
-            pytest.raises(CliError, match="cannot write subagent"),
-        ):
-            write_subagent(tmp_path, "claude", ["python"], "my-subagent", "system")
+            write(tmp_path)
+        assert exc_info.value.hint == "check file permissions and disk space"
 
 
 class TestYamlString:
@@ -240,21 +229,17 @@ class TestYamlString:
 class TestParseKv:
     """tests for key-value parsing."""
 
-    def test_parses_pairs(self):
-        result = parse_kv(["key=value", "foo=bar"])
-        assert result == {"key": "value", "foo": "bar"}
-
-    def test_handles_equals_in_value(self):
-        result = parse_kv(["key=a=b=c"])
-        assert result == {"key": "a=b=c"}
-
-    def test_strips_whitespace(self):
-        result = parse_kv(["  key  =  value  "])
-        assert result == {"key": "value"}
-
-    def test_empty_list(self):
-        result = parse_kv([])
-        assert result == {}
+    @pytest.mark.parametrize(
+        ("pairs", "expected"),
+        [
+            (["key=value", "foo=bar"], {"key": "value", "foo": "bar"}),
+            (["key=a=b=c"], {"key": "a=b=c"}),
+            (["  key  =  value  "], {"key": "value"}),
+        ],
+        ids=["pairs", "equals-in-value", "whitespace"],
+    )
+    def test_parses(self, pairs, expected):
+        assert parse_kv(pairs) == expected
 
     def test_missing_equals_raises(self):
         with pytest.raises(CliError, match="invalid argument"):
@@ -280,7 +265,7 @@ class TestRunAgent:
 class TestCmdConjure:
     """tests for conjure command."""
 
-    def test_writes_output_file(self, tmp_path):
+    def test_writes_output_file(self, tmp_path, capsys):
         args = argparse.Namespace(
             agent="claude",
             conjurings=["python"],
@@ -290,9 +275,9 @@ class TestCmdConjure:
         )
         result = cmd_conjure(args)
         assert result == 0
-        assert (tmp_path / "CLAUDE.md").exists()
         content = (tmp_path / "CLAUDE.md").read_text()
         assert "python" in content.lower()
+        assert capsys.readouterr().out == "wrote instructions for claude\n"
 
     def test_unknown_profile_raises(self, tmp_path):
         args = argparse.Namespace(
@@ -393,9 +378,11 @@ class TestCmdInvoke:
             )
             result = cmd_invoke(args)
             assert result == 0
-            call_args = mock_run.call_args
-            prompt = call_args[0][2]
-            assert "explain" in prompt.lower()
+            mock_run.assert_called_once_with(
+                tmp_path.resolve(), "claude", ANY, headless=True, auto=False
+            )
+            prompt = mock_run.call_args[0][2]
+            assert "some code" in prompt
 
     def test_unknown_invocation_raises(self, tmp_path):
         args = argparse.Namespace(
@@ -414,49 +401,7 @@ class TestCmdInvoke:
         with pytest.raises(CliError, match="unknown invocation"):
             cmd_invoke(args)
 
-    def test_kv_args_passed(self, tmp_path):
-        inv_dir = tmp_path / ".familiar" / "invocations"
-        inv_dir.mkdir(parents=True)
-        (inv_dir / "custom.md").write_text("value is {{mykey}}")
-
-        with patch("familiar.cli.run_agent", return_value=0) as mock_run:
-            args = argparse.Namespace(
-                agent="claude",
-                invocation="custom",
-                into=str(tmp_path),
-                headless=True,
-                auto=False,
-                dry_run=False,
-                kv=["mykey=myvalue"],
-                inv_args=[],
-                worktree=False,
-                save_skill=False,
-                skill_name=None,
-            )
-            cmd_invoke(args)
-            prompt = mock_run.call_args[0][2]
-            assert "value is myvalue" in prompt
-
-    def test_dry_run_prints_prompt(self, tmp_path, capsys):
-        args = argparse.Namespace(
-            agent="claude",
-            invocation="explain",
-            into=str(tmp_path),
-            headless=False,
-            auto=False,
-            dry_run=True,
-            kv=None,
-            inv_args=["some code"],
-            worktree=False,
-            save_skill=False,
-            skill_name=None,
-        )
-        result = cmd_invoke(args)
-        assert result == 0
-        captured = capsys.readouterr()
-        assert "explain" in captured.out.lower()
-
-    def test_dry_run_does_not_run_agent(self, tmp_path):
+    def test_dry_run_prints_prompt_without_running(self, tmp_path, capsys):
         with patch("familiar.cli.run_agent") as mock_run:
             args = argparse.Namespace(
                 agent="claude",
@@ -466,13 +411,17 @@ class TestCmdInvoke:
                 auto=False,
                 dry_run=True,
                 kv=None,
-                inv_args=[],
+                inv_args=["some code"],
                 worktree=False,
                 save_skill=False,
                 skill_name=None,
             )
-            cmd_invoke(args)
+            result = cmd_invoke(args)
             mock_run.assert_not_called()
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "some code" in out
+        assert "{{" not in out
 
     def test_invoke_with_worktree(self, tmp_path):
         with (
@@ -501,7 +450,9 @@ class TestCmdInvoke:
             assert result == 0
             mock_wt.assert_called_once()
             assert mock_run.call_args[0][0] == tmp_path / "wt"
-            mock_copy.assert_called_once()
+            mock_copy.assert_called_once_with(
+                tmp_path.resolve() / "CLAUDE.md", tmp_path / "wt" / "CLAUDE.md"
+            )
 
     def test_invoke_worktree_cleaned_up_on_error(self, tmp_path):
         with (
@@ -524,7 +475,7 @@ class TestCmdInvoke:
             )
             with pytest.raises(RuntimeError, match="boom"):
                 cmd_invoke(args)
-            mock_remove.assert_called_once()
+            mock_remove.assert_called_once_with(tmp_path.resolve(), tmp_path / "wt")
 
     def test_invoke_save_skill_claude(self, tmp_path):
         with patch("familiar.cli.run_agent") as mock_run:
@@ -721,13 +672,22 @@ class TestCmdList:
             verbose=True,
         )
         cmd_list(args)
-        captured = capsys.readouterr()
-        assert ":" in captured.out
+        lines = capsys.readouterr().out.splitlines()
+        assert any(line.startswith("python: ") for line in lines)
+        assert all(": " in line for line in lines)
 
-    def test_list_local_marked(self, tmp_path, capsys):
+    @pytest.mark.parametrize(
+        ("filename", "content", "line"),
+        [
+            ("custom.md", "# my custom profile", "custom (local)"),
+            ("python.md", "# custom python", "python (local)"),
+        ],
+        ids=["new-item", "override"],
+    )
+    def test_list_local_marked(self, tmp_path, capsys, filename, content, line):
         templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
-        (templates / "custom.md").write_text("# my custom profile")
+        (templates / filename).write_text(content)
 
         args = argparse.Namespace(
             kind="conjurings",
@@ -735,24 +695,10 @@ class TestCmdList:
             verbose=False,
         )
         cmd_list(args)
-        captured = capsys.readouterr()
-        assert "custom (local)" in captured.out
+        assert line in capsys.readouterr().out.splitlines()
 
-    def test_list_override_marked_local(self, tmp_path, capsys):
-        templates = tmp_path / ".familiar" / "conjurings"
-        templates.mkdir(parents=True)
-        (templates / "python.md").write_text("# custom python")
-
-        args = argparse.Namespace(
-            kind="conjurings",
-            into=str(tmp_path),
-            verbose=False,
-        )
-        cmd_list(args)
-        captured = capsys.readouterr()
-        assert "python (local)" in captured.out
-
-    def test_list_marks_unreadable_local(self, tmp_path, capsys):
+    @pytest.mark.parametrize("verbose", [False, True])
+    def test_list_marks_unreadable_local(self, tmp_path, capsys, verbose):
         invocations = tmp_path / ".familiar" / "invocations"
         invocations.mkdir(parents=True)
         (invocations / "bad.md").write_bytes(b"task: caf\xe9\n")
@@ -760,23 +706,10 @@ class TestCmdList:
         args = argparse.Namespace(
             kind="invocations",
             into=str(tmp_path),
-            verbose=False,
+            verbose=verbose,
         )
         assert cmd_list(args) == 0
-        assert "bad (local, unreadable)\n" in capsys.readouterr().out
-
-    def test_list_verbose_unreadable_local_has_no_first_line(self, tmp_path, capsys):
-        invocations = tmp_path / ".familiar" / "invocations"
-        invocations.mkdir(parents=True)
-        (invocations / "bad.md").write_bytes(b"task: caf\xe9\n")
-
-        args = argparse.Namespace(
-            kind="invocations",
-            into=str(tmp_path),
-            verbose=True,
-        )
-        cmd_list(args)
-        assert "bad (local, unreadable)\n" in capsys.readouterr().out
+        assert "bad (local, unreadable)" in capsys.readouterr().out.splitlines()
 
     def test_list_all_marks_unreadable_snippet(self, tmp_path, capsys):
         snippet_dir = tmp_path / ".familiar" / "snippets" / "x"
@@ -863,8 +796,10 @@ class TestCmdLint:
         )
         result = cmd_lint(args)
         assert result == 1  # errors cause failure
-        captured = capsys.readouterr()
-        assert "error" in captured.err
+        assert capsys.readouterr().err == (
+            "error: .familiar/conjurings/empty.md:1: template is empty\n"
+            "\n1 error(s), 0 warning(s)\n"
+        )
 
     def test_lint_errors_only(self, tmp_path, capsys):
         templates = tmp_path / ".familiar" / "conjurings"

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import re
+from importlib import resources
 
 import pytest
 
@@ -21,186 +23,173 @@ from familiar.render import (
 )
 
 
+def _locked(path):
+    path.write_text("content")
+    path.chmod(0o000)
+
+
+def _invalid_utf8(path):
+    path.write_bytes(b"\xff\xfe invalid utf-8")
+
+
+def _directory(path):
+    path.mkdir()
+
+
+def _symlink_loop(path):
+    path.symlink_to(path.name)
+
+
+def _dangling_symlink(path):
+    path.symlink_to(path.parent / "gone")
+
+
+def _nothing(path):
+    pass
+
+
 class TestSubstitute:
     """tests for placeholder substitution."""
 
-    def test_positional_args(self):
-        text = "hello $1 and $2"
-        result = substitute(text, ["world", "friends"], {})
-        assert result == "hello world and friends"
+    @pytest.mark.parametrize(
+        ("text", "args", "kv", "expected"),
+        [
+            ("hello $1 and $2", ["world", "friends"], {}, "hello world and friends"),
+            ("args: $ARGUMENTS", ["one", "two", "three"], {}, "args: one two three"),
+            (
+                "name: {{name}}, value: {{value}}",
+                [],
+                {"name": "foo", "value": "bar"},
+                "name: foo, value: bar",
+            ),
+            (
+                "$1 says {{greeting}}",
+                ["alice"],
+                {"greeting": "hello"},
+                "alice says hello",
+            ),
+            ("just {{used}}", [], {"used": "yes", "unused": "no"}, "just yes"),
+            ("$ARGUMENTS", [], {}, ""),
+            ("$2 before $1", ["first", "second"], {}, "second before first"),
+        ],
+        ids=[
+            "positional",
+            "arguments",
+            "named",
+            "mixed",
+            "unused-kv-ignored",
+            "empty-args",
+            "positional-out-of-order",
+        ],
+    )
+    def test_substitutes(self, text, args, kv, expected):
+        assert substitute(text, args, kv) == expected
 
-    def test_arguments_placeholder(self):
-        text = "args: $ARGUMENTS"
-        result = substitute(text, ["one", "two", "three"], {})
-        assert result == "args: one two three"
-
-    def test_named_args(self):
-        text = "name: {{name}}, value: {{value}}"
-        result = substitute(text, [], {"name": "foo", "value": "bar"})
-        assert result == "name: foo, value: bar"
-
-    def test_mixed_args(self):
-        text = "$1 says {{greeting}}"
-        result = substitute(text, ["alice"], {"greeting": "hello"})
-        assert result == "alice says hello"
-
-    def test_missing_positional_warns(self, capsys):
-        text = "need $1 and $2 and $3"
-        result = substitute(text, ["only_one"], {})
-        assert result == "need only_one and  and "
-        captured = capsys.readouterr()
-        assert "warning: missing arguments: $2, $3" in captured.err
-
-    def test_unused_kv_ignored(self):
-        text = "just {{used}}"
-        result = substitute(text, [], {"used": "yes", "unused": "no"})
-        assert result == "just yes"
-
-    def test_empty_args(self):
-        text = "$ARGUMENTS"
-        result = substitute(text, [], {})
-        assert result == ""
-
-    def test_positional_out_of_order(self):
-        text = "$2 before $1"
-        result = substitute(text, ["first", "second"], {})
-        assert result == "second before first"
-
-    def test_missing_named_warns(self, capsys):
-        text = "spec: {{spec}}"
-        result = substitute(text, [], {})
-        assert result == "spec: {{spec}}"
-        captured = capsys.readouterr()
-        assert "warning: missing arguments: {{spec}}" in captured.err
-
-    def test_present_named_no_warning(self, capsys):
-        text = "spec: {{spec}}"
-        result = substitute(text, [], {"spec": "caching"})
-        assert result == "spec: caching"
-        captured = capsys.readouterr()
-        assert captured.err == ""
-
-    def test_missing_mixed_reports_both(self, capsys):
-        text = "$1 and {{spec}} and $2"
-        result = substitute(text, ["only_one"], {})
-        assert result == "only_one and {{spec}} and "
-        captured = capsys.readouterr()
-        assert "warning: missing arguments: {{spec}}, $2" in captured.err
+    @pytest.mark.parametrize(
+        ("text", "args", "kv", "expected", "stderr"),
+        [
+            (
+                "need $1 and $2 and $3",
+                ["only_one"],
+                {},
+                "need only_one and  and ",
+                "warning: missing arguments: $2, $3\n",
+            ),
+            (
+                "spec: {{spec}}",
+                [],
+                {},
+                "spec: {{spec}}",
+                "warning: missing arguments: {{spec}}\n",
+            ),
+            ("spec: {{spec}}", [], {"spec": "caching"}, "spec: caching", ""),
+            (
+                "$1 and {{spec}} and $2",
+                ["only_one"],
+                {},
+                "only_one and {{spec}} and ",
+                "warning: missing arguments: {{spec}}, $2\n",
+            ),
+        ],
+        ids=["missing-positional", "missing-named", "present-named", "missing-mixed"],
+    )
+    def test_missing_arguments_warn(self, capsys, text, args, kv, expected, stderr):
+        assert substitute(text, args, kv) == expected
+        assert capsys.readouterr().err == stderr
 
 
 class TestLoadText:
     """tests for loading conjurings and invocations."""
 
-    def test_load_builtin_template(self, tmp_path):
-        result = load_text(tmp_path, "conjurings", "core")
-        assert "# core profile" in result.lower() or "workflow" in result.lower()
+    @pytest.mark.parametrize(
+        ("kind", "name"), [("conjurings", "core"), ("invocations", "explain")]
+    )
+    def test_load_builtin(self, tmp_path, kind, name):
+        packaged = resources.files(f"familiar.data.{kind}") / f"{name}.md"
+        assert load_text(tmp_path, kind, name) == packaged.read_text(encoding="utf-8")
 
-    def test_load_builtin_invocation(self, tmp_path):
-        result = load_text(tmp_path, "invocations", "explain")
-        assert "explain" in result.lower()
-
-    def test_local_override(self, tmp_path):
+    @pytest.mark.parametrize(
+        ("name", "content"),
+        [("core", "custom core content"), ("custom", "my custom template")],
+        ids=["override", "new-item"],
+    )
+    def test_local_file(self, tmp_path, name, content):
         override_dir = tmp_path / ".familiar" / "conjurings"
         override_dir.mkdir(parents=True)
-        (override_dir / "core.md").write_text("custom core content")
-        result = load_text(tmp_path, "conjurings", "core")
-        assert result == "custom core content"
-
-    def test_local_custom_template(self, tmp_path):
-        override_dir = tmp_path / ".familiar" / "conjurings"
-        override_dir.mkdir(parents=True)
-        (override_dir / "custom.md").write_text("my custom template")
-        result = load_text(tmp_path, "conjurings", "custom")
-        assert result == "my custom template"
+        (override_dir / f"{name}.md").write_text(content)
+        assert load_text(tmp_path, "conjurings", name) == content
 
     @pytest.mark.parametrize("name", ["../../../etc/passwd", "abc\n"])
     def test_invalid_name_raises(self, tmp_path, name):
         with pytest.raises(NotFoundError, match="invalid conjuring name"):
             load_text(tmp_path, "conjurings", name)
 
-    def test_unknown_template_raises(self, tmp_path):
-        with pytest.raises(NotFoundError, match="unknown conjuring"):
-            load_text(tmp_path, "conjurings", "nonexistent")
+    @pytest.mark.parametrize("kind", ["conjurings", "invocations"])
+    def test_unknown_item_raises(self, tmp_path, kind):
+        with pytest.raises(
+            NotFoundError, match=f"unknown {kind[:-1]}: nonexistent"
+        ) as e:
+            load_text(tmp_path, kind, "nonexistent")
+        assert type(e.value) is NotFoundError
 
-    def test_unknown_invocation_raises(self, tmp_path):
-        with pytest.raises(NotFoundError, match="unknown invocation"):
-            load_text(tmp_path, "invocations", "nonexistent")
-
-    def test_permission_denied_raises(self, tmp_path):
+    @pytest.mark.parametrize(
+        ("make", "name", "detail"),
+        [
+            (_locked, "locked", "permission denied"),
+            (_invalid_utf8, "binary", "not valid UTF-8"),
+            (_directory, "nested", "is not a regular file"),
+            (_nothing, "a" * 300, ""),
+            (_symlink_loop, "python", ""),
+            (_dangling_symlink, "python", ""),
+        ],
+        ids=[
+            "permission-denied",
+            "invalid-utf8",
+            "directory",
+            "overlong-name",
+            "symlink-loop",
+            "dangling-symlink",
+        ],
+    )
+    def test_unreadable_override_raises(self, tmp_path, make, name, detail):
         override_dir = tmp_path / ".familiar" / "conjurings"
         override_dir.mkdir(parents=True)
-        f = override_dir / "locked.md"
-        f.write_text("content")
-        f.chmod(0o000)
-        try:
-            with pytest.raises(NotFoundError, match="permission denied"):
-                load_text(tmp_path, "conjurings", "locked")
-        finally:
-            f.chmod(0o644)
-
-    def test_invalid_utf8_raises(self, tmp_path):
-        override_dir = tmp_path / ".familiar" / "conjurings"
-        override_dir.mkdir(parents=True)
-        (override_dir / "binary.md").write_bytes(b"\xff\xfe invalid utf-8")
-        with pytest.raises(NotFoundError, match="not valid UTF-8"):
-            load_text(tmp_path, "conjurings", "binary")
-
-    def test_directory_override_raises(self, tmp_path):
-        override_dir = tmp_path / ".familiar" / "conjurings"
-        (override_dir / "nested.md").mkdir(parents=True)
-        with pytest.raises(NotFoundError, match="cannot read conjuring 'nested'"):
-            load_text(tmp_path, "conjurings", "nested")
-
-    def test_overlong_name_override_raises(self, tmp_path):
-        override_dir = tmp_path / ".familiar" / "conjurings"
-        override_dir.mkdir(parents=True)
-        with pytest.raises(NotFoundError, match="cannot read conjuring"):
-            load_text(tmp_path, "conjurings", "a" * 300)
-
-    def test_symlink_loop_override_raises(self, tmp_path):
-        override_dir = tmp_path / ".familiar" / "conjurings"
-        override_dir.mkdir(parents=True)
-        (override_dir / "python.md").symlink_to("python.md")
-        with pytest.raises(NotFoundError, match="cannot read conjuring 'python'"):
-            load_text(tmp_path, "conjurings", "python")
-
-    def test_dangling_symlink_override_raises(self, tmp_path):
-        override_dir = tmp_path / ".familiar" / "conjurings"
-        override_dir.mkdir(parents=True)
-        (override_dir / "python.md").symlink_to(tmp_path / "gone.md")
-        with pytest.raises(NotFoundError, match="cannot read conjuring 'python'"):
-            load_text(tmp_path, "conjurings", "python")
-
-    def test_unreadable_override_raises_unreadable_error(self, tmp_path):
-        override_dir = tmp_path / ".familiar" / "conjurings"
-        override_dir.mkdir(parents=True)
-        (override_dir / "binary.md").write_bytes(b"\xff\xfe invalid utf-8")
-        with pytest.raises(UnreadableError, match="not valid UTF-8"):
-            load_text(tmp_path, "conjurings", "binary")
-
-    def test_unknown_item_is_not_unreadable(self, tmp_path):
-        with pytest.raises(NotFoundError) as excinfo:
-            load_text(tmp_path, "conjurings", "nonexistent")
-        assert not isinstance(excinfo.value, UnreadableError)
+        make(override_dir / f"{name}.md")
+        with pytest.raises(
+            UnreadableError, match=f"^cannot read conjuring '{name}': .*{detail}"
+        ):
+            load_text(tmp_path, "conjurings", name)
 
 
 class TestComposeSystem:
     """tests for composing system prompts."""
 
     def test_compose_with_conjurings(self, tmp_path):
+        conjurings = resources.files("familiar.data.conjurings")
+        core = (conjurings / "core.md").read_text(encoding="utf-8")
+        python = (conjurings / "python.md").read_text(encoding="utf-8")
         system = compose_system(tmp_path, ["python"])
-        assert "core" in system.lower() or "workflow" in system.lower()
-        assert "python" in system.lower()
-
-    def test_compose_order(self, tmp_path):
-        templates = tmp_path / ".familiar" / "conjurings"
-        templates.mkdir(parents=True)
-        (templates / "core.md").write_text("CORE")
-        (templates / "first.md").write_text("FIRST")
-        (templates / "second.md").write_text("SECOND")
-
-        system = compose_system(tmp_path, ["first", "second"])
-        assert system == "CORE\n\nFIRST\n\nSECOND"
+        assert system == core.strip() + "\n\n" + python.strip()
 
     def test_compose_core_only(self, tmp_path):
         templates = tmp_path / ".familiar" / "conjurings"
@@ -229,10 +218,6 @@ class TestComposeSystem:
 
         system = compose_system(tmp_path, ["pad"])
         assert system == "CORE\n\nPAD"
-
-    def test_compose_missing_profile_raises(self, tmp_path):
-        with pytest.raises(NotFoundError, match="unknown conjuring"):
-            compose_system(tmp_path, ["nonexistent"])
 
     def test_compose_expands_include(self, tmp_path):
         """a conjuring with a valid snippet include is expanded, not left verbatim."""
@@ -274,38 +259,9 @@ class TestComposeSystem:
         system = compose_system(tmp_path, ["guide"])
         assert system == "CORE\n\nouter[INNER]"
 
-    def test_compose_missing_snippet_raises(self, tmp_path):
-        templates = tmp_path / ".familiar" / "conjurings"
-        templates.mkdir(parents=True)
-        (templates / "core.md").write_text("CORE")
-        (templates / "guide.md").write_text("{{> snippet:test/missing.txt}}")
-
-        with pytest.raises(NotFoundError, match="unknown snippet"):
-            compose_system(tmp_path, ["guide"])
-
-    def test_compose_include_cycle_raises(self, tmp_path):
-        templates = tmp_path / ".familiar" / "conjurings"
-        templates.mkdir(parents=True)
-        (templates / "core.md").write_text("CORE")
-        (templates / "guide.md").write_text("{{> snippet:test/loop.txt}}")
-        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
-        snippet_dir.mkdir(parents=True)
-        (snippet_dir / "loop.txt").write_text("{{> snippet:test/loop.txt}}")
-
-        with pytest.raises(NotFoundError, match="snippet include cycle"):
-            compose_system(tmp_path, ["guide"])
-
 
 class TestRenderInvocation:
     """tests for rendering invocations."""
-
-    def test_render_with_args(self, tmp_path):
-        invocations = tmp_path / ".familiar" / "invocations"
-        invocations.mkdir(parents=True)
-        (invocations / "greet.md").write_text("hello $1, {{style}}")
-
-        result = render_invocation(tmp_path, "greet", ["world"], {"style": "friendly"})
-        assert result == "hello world, friendly"
 
     def test_render_with_snippet_and_args(self, tmp_path):
         snippets = tmp_path / ".familiar" / "snippets" / "test"
@@ -328,18 +284,6 @@ class TestRenderInvocation:
 
         result = render_invocation(tmp_path, "plain", [], {})
         assert result == "no placeholders here"
-
-    def test_render_arguments_placeholder(self, tmp_path):
-        invocations = tmp_path / ".familiar" / "invocations"
-        invocations.mkdir(parents=True)
-        (invocations / "all.md").write_text("run $ARGUMENTS")
-
-        result = render_invocation(tmp_path, "all", ["a", "b", "c"], {})
-        assert result == "run a b c"
-
-    def test_render_missing_invocation_raises(self, tmp_path):
-        with pytest.raises(NotFoundError, match="unknown invocation"):
-            render_invocation(tmp_path, "nonexistent", [], {})
 
 
 class TestListItems:
@@ -364,114 +308,77 @@ class TestListItems:
         assert "__noop__" not in names
 
     def test_list_includes_first_line(self, tmp_path):
+        core = resources.files("familiar.data.conjurings") / "core.md"
+        expected = next(
+            line.strip()
+            for line in core.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        )
         items = list_items(tmp_path, "conjurings")
-        core_items = [(n, f, loc) for n, f, loc in items if n == "core"]
-        assert len(core_items) == 1
-        _, first_line, _ = core_items[0]
-        assert first_line  # not empty
-
-    def test_list_local_override_marked(self, tmp_path):
-        templates = tmp_path / ".familiar" / "conjurings"
-        templates.mkdir(parents=True)
-        (templates / "core.md").write_text("# local core")
-
-        items = list_items(tmp_path, "conjurings")
-        core_items = [(n, f, loc) for n, f, loc in items if n == "core"]
-        assert len(core_items) == 1
-        _, first_line, is_local = core_items[0]
-        assert is_local is True
-        assert first_line == "# local core"
-
-    def test_list_local_custom_template(self, tmp_path):
-        templates = tmp_path / ".familiar" / "conjurings"
-        templates.mkdir(parents=True)
-        (templates / "custom.md").write_text("# my custom")
-
-        items = list_items(tmp_path, "conjurings")
-        custom_items = [(n, f, loc) for n, f, loc in items if n == "custom"]
-        assert len(custom_items) == 1
-        _, first_line, is_local = custom_items[0]
-        assert is_local is True
-        assert first_line == "# my custom"
+        assert [item for item in items if item[0] == "core"] == [
+            ("core", expected, False)
+        ]
 
     @pytest.mark.parametrize(
-        ("content", "first_line"),
-        [("\n  \n# my custom\n", "# my custom"), ("\n  \n", "")],
+        ("name", "content", "first_line"),
+        [
+            ("core", "# local core", "# local core"),
+            ("custom", "# my custom", "# my custom"),
+            ("custom", "\n  \n# my custom\n", "# my custom"),
+            ("custom", "\n  \n", ""),
+        ],
+        ids=["override", "new-item", "leading-blank-lines", "blank-only"],
     )
-    def test_list_first_line_skips_leading_blank_lines(
-        self, tmp_path, content, first_line
-    ):
+    def test_list_local_item(self, tmp_path, name, content, first_line):
         templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
-        (templates / "custom.md").write_text(content)
+        (templates / f"{name}.md").write_text(content)
 
         items = list_items(tmp_path, "conjurings")
-        assert ("custom", first_line, True) in items
+        assert [item for item in items if item[0] == name] == [(name, first_line, True)]
 
     def test_list_sorted(self, tmp_path):
         items = list_items(tmp_path, "conjurings")
         names = [name for name, _, _ in items]
         assert names == sorted(names)
 
-    def test_list_empty_dir(self, tmp_path):
-        # no local overrides, but still gets builtins
-        items = list_items(tmp_path, "conjurings")
-        assert len(items) > 0
-
-    def test_list_marks_invalid_utf8_local_unreadable(self, tmp_path):
+    @pytest.mark.parametrize(
+        ("make", "name"),
+        [
+            (_invalid_utf8, "bad"),
+            (_locked, "locked"),
+            (_invalid_utf8, "python"),
+            (_dangling_symlink, "dangling"),
+            (_directory, "nested"),
+        ],
+        ids=[
+            "invalid-utf8",
+            "permission-denied",
+            "override-of-builtin",
+            "dangling-symlink",
+            "directory",
+        ],
+    )
+    def test_list_marks_local_unreadable(self, tmp_path, make, name):
         templates = tmp_path / ".familiar" / "conjurings"
         templates.mkdir(parents=True)
         (templates / "good.md").write_text("# good file")
-        (templates / "bad.md").write_bytes(b"\xff\xfe not utf-8")
+        make(templates / f"{name}.md")
 
         items = list_items(tmp_path, "conjurings")
         assert ("good", "# good file", True) in items
-        assert ("bad", None, True) in items
-
-    def test_list_marks_permission_denied_local_unreadable(self, tmp_path):
-        templates = tmp_path / ".familiar" / "conjurings"
-        templates.mkdir(parents=True)
-        (templates / "good.md").write_text("# good file")
-        locked = templates / "locked.md"
-        locked.write_text("content")
-        locked.chmod(0o000)
-        try:
-            items = list_items(tmp_path, "conjurings")
-            assert ("good", "# good file", True) in items
-            assert ("locked", None, True) in items
-        finally:
-            locked.chmod(0o644)
-
-    def test_list_marks_unreadable_override_of_builtin(self, tmp_path):
-        templates = tmp_path / ".familiar" / "conjurings"
-        templates.mkdir(parents=True)
-        (templates / "python.md").write_bytes(b"\xff\xfe not utf-8")
-
-        items = list_items(tmp_path, "conjurings")
-        assert [item for item in items if item[0] == "python"] == [
-            ("python", None, True)
-        ]
-
-    def test_list_marks_dangling_symlink_unreadable(self, tmp_path):
-        templates = tmp_path / ".familiar" / "conjurings"
-        templates.mkdir(parents=True)
-        (templates / "dangling.md").symlink_to(tmp_path / "gone.md")
-
-        items = list_items(tmp_path, "conjurings")
-        assert ("dangling", None, True) in items
-
-    def test_list_marks_directory_named_like_item_unreadable(self, tmp_path):
-        (tmp_path / ".familiar" / "conjurings" / "nested.md").mkdir(parents=True)
-
-        assert ("nested", None, True) in list_items(tmp_path, "conjurings")
+        assert [item for item in items if item[0] == name] == [(name, None, True)]
 
 
 class TestLoadSnippet:
     """tests for loading snippets."""
 
     def test_load_builtin_snippet(self, tmp_path):
+        packaged = (
+            resources.files("familiar.data.snippets") / "python" / "pyproject.toml"
+        )
         result = load_snippet(tmp_path, "python/pyproject.toml")
-        assert "[project]" in result
+        assert result == packaged.read_text(encoding="utf-8")
 
     def test_local_override(self, tmp_path):
         snippet_dir = tmp_path / ".familiar" / "snippets" / "python"
@@ -480,66 +387,47 @@ class TestLoadSnippet:
         result = load_snippet(tmp_path, "python/pyproject.toml")
         assert result == "custom pyproject"
 
-    def test_path_traversal_rejected(self, tmp_path):
+    @pytest.mark.parametrize(
+        "path",
+        ["../../../etc/passwd", "nosubdir", "python/github ci.yml"],
+        ids=["traversal", "single-segment", "invalid-character-after-valid-prefix"],
+    )
+    def test_invalid_path_rejected(self, tmp_path, path):
         with pytest.raises(NotFoundError, match="invalid snippet path"):
-            load_snippet(tmp_path, "../../../etc/passwd")
-
-    def test_single_segment_rejected(self, tmp_path):
-        with pytest.raises(NotFoundError, match="invalid snippet path"):
-            load_snippet(tmp_path, "nosubdir")
-
-    def test_invalid_character_after_valid_prefix_rejected(self, tmp_path):
-        with pytest.raises(NotFoundError, match="invalid snippet path"):
-            load_snippet(tmp_path, "python/github ci.yml")
+            load_snippet(tmp_path, path)
 
     def test_unknown_snippet_raises(self, tmp_path):
         with pytest.raises(NotFoundError, match="unknown snippet"):
             load_snippet(tmp_path, "nonexistent/file.txt")
 
-    def test_permission_denied_raises(self, tmp_path):
-        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
-        snippet_dir.mkdir(parents=True)
-        f = snippet_dir / "locked.txt"
-        f.write_text("content")
-        f.chmod(0o000)
-        try:
-            with pytest.raises(NotFoundError, match="permission denied"):
-                load_snippet(tmp_path, "test/locked.txt")
-        finally:
-            f.chmod(0o644)
-
-    def test_invalid_utf8_raises(self, tmp_path):
-        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
-        snippet_dir.mkdir(parents=True)
-        (snippet_dir / "binary.txt").write_bytes(b"\xff\xfe invalid utf-8")
-        with pytest.raises(NotFoundError, match="not valid UTF-8"):
-            load_snippet(tmp_path, "test/binary.txt")
-
-    def test_directory_override_raises(self, tmp_path):
-        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
-        (snippet_dir / "nested").mkdir(parents=True)
-        with pytest.raises(NotFoundError, match="cannot read snippet 'test/nested'"):
-            load_snippet(tmp_path, "test/nested")
-
-    def test_overlong_name_override_raises(self, tmp_path):
-        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
-        snippet_dir.mkdir(parents=True)
-        with pytest.raises(NotFoundError, match="cannot read snippet"):
-            load_snippet(tmp_path, "test/" + "a" * 300)
-
-    def test_symlink_loop_override_raises(self, tmp_path):
-        snippet_dir = tmp_path / ".familiar" / "snippets" / "python"
-        snippet_dir.mkdir(parents=True)
-        (snippet_dir / "pyproject.toml").symlink_to("pyproject.toml")
-        with pytest.raises(NotFoundError, match="cannot read snippet 'python/"):
-            load_snippet(tmp_path, "python/pyproject.toml")
-
-    def test_dangling_symlink_override_raises(self, tmp_path):
-        snippet_dir = tmp_path / ".familiar" / "snippets" / "python"
-        snippet_dir.mkdir(parents=True)
-        (snippet_dir / "pyproject.toml").symlink_to(tmp_path / "gone.toml")
-        with pytest.raises(NotFoundError, match="cannot read snippet 'python/"):
-            load_snippet(tmp_path, "python/pyproject.toml")
+    @pytest.mark.parametrize(
+        ("make", "path", "detail"),
+        [
+            (_locked, "test/locked.txt", "permission denied"),
+            (_invalid_utf8, "test/binary.txt", "not valid UTF-8"),
+            (_directory, "test/nested", "is not a regular file"),
+            (_nothing, "test/" + "a" * 300, ""),
+            (_symlink_loop, "python/pyproject.toml", ""),
+            (_dangling_symlink, "python/pyproject.toml", ""),
+        ],
+        ids=[
+            "permission-denied",
+            "invalid-utf8",
+            "directory",
+            "overlong-name",
+            "symlink-loop",
+            "dangling-symlink",
+        ],
+    )
+    def test_unreadable_override_raises(self, tmp_path, make, path, detail):
+        override = tmp_path / ".familiar" / "snippets" / path
+        override.parent.mkdir(parents=True)
+        make(override)
+        with pytest.raises(
+            UnreadableError,
+            match=f"^cannot read snippet '{re.escape(path)}': .*{detail}",
+        ):
+            load_snippet(tmp_path, path)
 
 
 class TestResolveIncludes:
@@ -578,19 +466,6 @@ class TestResolveIncludes:
         with pytest.raises(NotFoundError, match="unknown snippet"):
             resolve_includes(tmp_path, text)
 
-    def test_include_before_substitute(self, tmp_path):
-        """Include resolution happens before placeholder substitution."""
-        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
-        snippet_dir.mkdir(parents=True)
-        (snippet_dir / "template.txt").write_text("name = $1")
-
-        invocations = tmp_path / ".familiar" / "invocations"
-        invocations.mkdir(parents=True)
-        (invocations / "test.md").write_text("{{> snippet:test/template.txt}}")
-
-        result = render_invocation(tmp_path, "test", ["myapp"], {})
-        assert result == "name = myapp"
-
     def test_no_includes_unchanged(self, tmp_path):
         text = "no includes here, just {{named}} and $1"
         result = resolve_includes(tmp_path, text)
@@ -604,17 +479,6 @@ class TestResolveIncludes:
         text = "{{>  snippet:test/file.txt  }}"
         result = resolve_includes(tmp_path, text)
         assert result == "content"
-
-    def test_nested_include_resolves(self, tmp_path):
-        """a snippet that includes another snippet is expanded fully."""
-        snippet_dir = tmp_path / ".familiar" / "snippets" / "test"
-        snippet_dir.mkdir(parents=True)
-        (snippet_dir / "outer.txt").write_text("outer[{{> snippet:test/inner.txt}}]")
-        (snippet_dir / "inner.txt").write_text("INNER")
-
-        result = resolve_includes(tmp_path, "{{> snippet:test/outer.txt}}")
-        assert result == "outer[INNER]"
-        assert "{{> snippet" not in result
 
     def test_deeply_nested_include_resolves(self, tmp_path):
         """nested includes resolve through several levels."""
@@ -642,10 +506,11 @@ class TestResolveIncludes:
         (snippet_dir / "a.txt").write_text("{{> snippet:test/b.txt}}")
         (snippet_dir / "b.txt").write_text("{{> snippet:test/a.txt}}")
 
-        with pytest.raises(NotFoundError, match="snippet include cycle") as exc:
+        with pytest.raises(
+            NotFoundError,
+            match="^snippet include cycle: test/a.txt -> test/b.txt -> test/a.txt$",
+        ):
             resolve_includes(tmp_path, "{{> snippet:test/a.txt}}")
-        assert "test/a.txt" in str(exc.value)
-        assert "test/b.txt" in str(exc.value)
 
     def test_include_depth_backstop(self, tmp_path):
         """an over-deep acyclic chain raises rather than recursing without bound."""
@@ -671,19 +536,6 @@ class TestListSnippets:
         paths = [path for path, _, _ in items]
         assert "python/pyproject.toml" in paths
         assert "rust/Cargo.toml" in paths
-
-    def test_list_local_override_marked(self, tmp_path):
-        snippet_dir = tmp_path / ".familiar" / "snippets" / "python"
-        snippet_dir.mkdir(parents=True)
-        (snippet_dir / "pyproject.toml").write_text("custom")
-
-        items = list_snippets(tmp_path)
-        pyproject_items = [
-            (p, f, loc) for p, f, loc in items if p == "python/pyproject.toml"
-        ]
-        assert len(pyproject_items) == 1
-        _, _, is_local = pyproject_items[0]
-        assert is_local is True
 
     def test_list_sorted(self, tmp_path):
         items = list_snippets(tmp_path)
