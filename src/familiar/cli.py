@@ -293,7 +293,6 @@ def cmd_conjure(args: argparse.Namespace) -> int:
             str(e),
             hint="run 'familiar list conjurings' to see available options",
         )
-    write_instruction(repo_root, args.agent, system)
     if getattr(args, "save_subagent", False):
         subagent_name = getattr(args, "subagent_name", None) or "_".join(
             args.conjurings
@@ -302,6 +301,7 @@ def cmd_conjure(args: argparse.Namespace) -> int:
             repo_root, args.agent, args.conjurings, subagent_name, system
         )
         print(f"wrote subagent: {subagent_path}")
+    write_instruction(repo_root, args.agent, system)
     print(f"wrote instructions for {args.agent}")
     return EXIT_SUCCESS
 

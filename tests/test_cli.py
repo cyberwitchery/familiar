@@ -333,6 +333,7 @@ class TestCmdConjure:
         }
 
     def test_codex_reports_no_subagent_support(self, tmp_path):
+        (tmp_path / "AGENTS.md").write_bytes(b"ORIGINAL\n")
         args = argparse.Namespace(
             agent="codex",
             conjurings=["rust", "infra"],
@@ -342,10 +343,16 @@ class TestCmdConjure:
         )
         with pytest.raises(CliError, match="agent does not support subagents: codex"):
             cmd_conjure(args)
+        assert (tmp_path / "AGENTS.md").read_bytes() == b"ORIGINAL\n"
         assert not (tmp_path / ".codex").exists()
 
-    @pytest.mark.parametrize("name", ["Not Valid", "abc\n"])
-    def test_invalid_subagent_name_raises(self, tmp_path, name):
+    @pytest.mark.parametrize(
+        ("name", "original"), [("Not Valid", b"ORIGINAL\n"), ("abc\n", None)]
+    )
+    def test_invalid_subagent_name_raises(self, tmp_path, name, original):
+        claude_md = tmp_path / "CLAUDE.md"
+        if original is not None:
+            claude_md.write_bytes(original)
         args = argparse.Namespace(
             agent="claude",
             conjurings=["python"],
@@ -355,6 +362,7 @@ class TestCmdConjure:
         )
         with pytest.raises(CliError, match="invalid subagent name"):
             cmd_conjure(args)
+        assert (claude_md.read_bytes() if claude_md.exists() else None) == original
         assert not (tmp_path / ".claude").exists()
 
 

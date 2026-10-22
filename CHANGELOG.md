@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `familiar conjure --save-subagent` no longer overwrites the agent's instruction file, such as `CLAUDE.md` or `AGENTS.md`, when it fails to save the subagent: an invalid `--subagent-name`, such as `Bad_Name`, or an agent without subagent support, such as codex, made the command exit with an error only after it had replaced the file, losing any hand edits while reporting failure; the instruction file is now written only once the subagent has been saved
 - `familiar lint` now checks a `{{> snippet:...}}` include written across several lines, which `conjure` and `invoke` expand like any other: lint read includes one line at a time and never saw such an include, so a broken one passed lint clean and only failed at `conjure`/`invoke`; it is now reported on the line where the include starts
 
 ## [0.6.2] - 2026-10-14
