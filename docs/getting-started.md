@@ -95,7 +95,7 @@ see [linting](linting.md) for the rules.
 use `--headless` to run without interactive ui:
 
 ```bash
-familiar invoke codex bootstrap-rust --headless myapp bin
+familiar invoke codex bootstrap-rust myapp bin --headless
 familiar invoke claude code-review --headless
 ```
 
