@@ -71,7 +71,7 @@ identifies code paths, describes behavior, notes edge cases.
 implement a feature from a spec.
 
 ```bash
-familiar invoke codex implement-feature "add rate limiting to the api endpoints"
+familiar invoke codex implement-feature --kv spec="add rate limiting to the api endpoints"
 ```
 
 restates spec, lists files, implements with minimal diffs, adds tests.

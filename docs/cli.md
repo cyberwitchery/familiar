@@ -52,7 +52,7 @@ familiar conjure claude rust infra --save-subagent --subagent-name ship_ops
 run a task prompt through the agent.
 
 ```
-familiar invoke <agent> <invocation> [--into <path>] [--headless] [--kv <key=value>...] [args...]
+familiar invoke <agent> <invocation> [args...] [--into <path>] [--headless] [--kv <key=value>...]
 ```
 
 **arguments:**
@@ -74,7 +74,7 @@ familiar invoke <agent> <invocation> [--into <path>] [--headless] [--kv <key=val
 | `--worktree` | run in a separate git worktree to avoid interfering with local changes |
 | `--save-skill` | write rendered invocation as a reusable skill and exit |
 | `--skill-name` | override skill name (default: invocation name) |
-| `--kv` | named arguments as `key=value` pairs |
+| `--kv` | named arguments as `key=value` pairs; takes every value up to the next option, so `args` go before it |
 
 **behavior:**
 
