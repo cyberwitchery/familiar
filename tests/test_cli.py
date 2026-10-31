@@ -133,6 +133,13 @@ class TestWriteFile:
         _write_file(dest, "nested\n")
         assert dest.read_text() == "nested\n"
 
+    def test_unencodable_content_leaves_the_file_alone(self, tmp_path):
+        dest = tmp_path / "out.md"
+        dest.write_bytes(b"hand-edited\n")
+        with pytest.raises(UnicodeEncodeError):
+            _write_file(dest, "a\udcffb\n")
+        assert dest.read_bytes() == b"hand-edited\n"
+
 
 class TestWriteInstruction:
     """tests for writing instruction files."""
@@ -629,6 +636,41 @@ class TestInvokeKvFlag:
         captured = self._dry_run(tmp_path, capsys, argv)
         assert "add caching" in captured.out
         assert "missing arguments" not in captured.err
+
+
+class TestInvokeUndecodableArgument:
+    """tests for invoke arguments that are not valid UTF-8."""
+
+    @pytest.mark.parametrize(
+        ("args", "shown"),
+        [
+            (["a\udcffb", "--save-skill"], "a\\xffb"),
+            (["a\udcffb", "--dry-run"], "a\\xffb"),
+            (["--kv", "k=a\udcffb", "--save-skill"], "k=a\\xffb"),
+            (["a\udcffb", "--headless"], "a\\xffb"),
+        ],
+        ids=["save-skill", "dry-run", "kv", "headless"],
+    )
+    def test_rejected_before_rendering(self, tmp_path, capsys, args, shown):
+        inv_dir = tmp_path / ".familiar" / "invocations"
+        inv_dir.mkdir(parents=True)
+        (inv_dir / "fix.md").write_text("fix $1 {{k}}\n")
+        skill = tmp_path / ".claude" / "skills" / "fix" / "SKILL.md"
+        skill.parent.mkdir(parents=True)
+        skill.write_bytes(b"hand-edited\n")
+        argv = ["familiar", "invoke", "claude", "fix", *args, "--into", str(tmp_path)]
+        with (
+            patch("familiar.cli.run_agent") as mock_run,
+            patch("sys.argv", argv),
+            pytest.raises(SystemExit, match="^2$"),
+        ):
+            main()
+        mock_run.assert_not_called()
+        assert capsys.readouterr() == (
+            "",
+            f"error: argument '{shown}' is not valid UTF-8\n",
+        )
+        assert skill.read_bytes() == b"hand-edited\n"
 
 
 class TestCmdList:
