@@ -60,6 +60,7 @@ def _resolve_agent(name: str) -> Agent:
 def _write_file(path: Path, content: str, label: str = "") -> None:
     """write content to path, creating parent dirs. wraps OSError as CliError."""
     prefix = f"{label} " if label else ""
+    content.encode("utf-8")  # fail before write_text truncates the file
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
@@ -271,6 +272,17 @@ def parse_kv(pairs: list[str]) -> dict[str, str]:
     return out
 
 
+def _require_utf8(values: list[str]) -> None:
+    """raise CliError naming the first value that is not valid UTF-8."""
+    for value in values:
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError:
+            raise CliError(
+                f"argument '{_escape_undecodable(value)}' is not valid UTF-8"
+            )
+
+
 def run_agent(
     repo_root: Path, agent_name: str, prompt: str, headless: bool, auto: bool = False
 ) -> int:
@@ -308,6 +320,7 @@ def cmd_conjure(args: argparse.Namespace) -> int:
 
 def cmd_invoke(args: argparse.Namespace) -> int:
     repo_root = find_repo_root(Path(args.into or os.getcwd()))
+    _require_utf8([*(args.inv_args or []), *(args.kv or [])])
     kv = parse_kv(args.kv or [])
     try:
         prompt = render_invocation(repo_root, args.invocation, args.inv_args or [], kv)
